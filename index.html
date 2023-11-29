@@ -8,27 +8,64 @@
 </head>
 <body>
 
-<div class="container mt-5">
-    <h1 class="mb-4">Anagram & Magic Square Solver</h1>
-
-    <!-- Anagram Solver -->
-    <div class="mb-5">
-        <h2>Anagram Solver</h2>
-        <label for="anagramInput">Enter a word:</label>
-        <input type="text" id="anagramInput" class="form-control mb-2" placeholder="Enter a word">
-        <button class="btn btn-primary" onclick="solveAnagram()">Solve Anagram</button>
-        <p id="anagramResult" class="mt-2"></p>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="#">
+        <img src="your_logo.png" width="30" height="30" class="d-inline-block align-top" alt="Logo">
+        Anagram Magic
+    </a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item active">
+                <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">About</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">Contact</a>
+            </li>
+        </ul>
     </div>
+</nav>
 
-    <!-- Magic Square Solver -->
-    <div>
-        <h2>Magic Square Solver</h2>
-        <label for="magicSquareInput">Enter the size of the magic square (e.g., 3 for a 3x3 square):</label>
-        <input type="number" id="magicSquareInput" class="form-control mb-2" placeholder="Enter size">
-        <button class="btn btn-primary" onclick="solveMagicSquare()">Solve Magic Square</button>
-        <p id="magicSquareResult" class="mt-2"></p>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="mb-4">Anagram & Magic Square Solver</h1>
+
+                    <!-- Anagram Solver -->
+                    <div class="mb-5">
+                        <h2>Anagram Solver</h2>
+                        <label for="anagramInput">Enter a word:</label>
+                        <input type="text" id="anagramInput" class="form-control mb-2" placeholder="Enter a word">
+                        <button class="btn btn-primary" onclick="solveAnagram()">Solve Anagram</button>
+                        <p id="anagramResult" class="mt-2"></p>
+                    </div>
+
+                    <!-- Magic Square Solver -->
+                    <div>
+                        <h2>Magic Square Solver</h2>
+                        <label for="magicSquareInput">Enter the size of the magic square (e.g., 3 for a 3x3 square):</label>
+                        <input type="number" id="magicSquareInput" class="form-control mb-2" placeholder="Enter size">
+                        <button class="btn btn-primary" onclick="solveMagicSquare()">Solve Magic Square</button>
+                        <p id="magicSquareResult" class="mt-2"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<footer class="footer mt-5 bg-dark text-white text-center">
+    <div class="container">
+        <p>&copy; 2023 EazyLogic Inc</p>
+    </div>
+</footer>
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
