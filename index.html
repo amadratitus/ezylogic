@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anagram & Magic Square Solver</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container mt-5">
+    <h1 class="mb-4">Anagram & Magic Square Solver</h1>
+
+    <!-- Anagram Solver -->
+    <div class="mb-5">
+        <h2>Anagram Solver</h2>
+        <label for="anagramInput">Enter a word:</label>
+        <input type="text" id="anagramInput" class="form-control mb-2" placeholder="Enter a word">
+        <button class="btn btn-primary" onclick="solveAnagram()">Solve Anagram</button>
+        <p id="anagramResult" class="mt-2"></p>
+    </div>
+
+    <!-- Magic Square Solver -->
+    <div>
+        <h2>Magic Square Solver</h2>
+        <label for="magicSquareInput">Enter the size of the magic square (e.g., 3 for a 3x3 square):</label>
+        <input type="number" id="magicSquareInput" class="form-control mb-2" placeholder="Enter size">
+        <button class="btn btn-primary" onclick="solveMagicSquare()">Solve Magic Square</button>
+        <p id="magicSquareResult" class="mt-2"></p>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+    function solveAnagram() {
+        const input = document.getElementById('anagramInput').value;
+        const result = document.getElementById('anagramResult');
+        
+        const sortedInput = input.split('').sort().join('');
+        result.textContent = `Anagram: ${sortedInput}`;
+    }
+
+    function solveMagicSquare() {
+        const size = parseInt(document.getElementById('magicSquareInput').value);
+        const result = document.getElementById('magicSquareResult');
+        
+        const isOdd = size % 2 === 1;
+        
+        if (isOdd) {
+            result.textContent = "Magic squares with odd sizes are not supported in this example.";
+            return;
+        }
+
+        const magicSquare = generateEvenOrderMagicSquare(size);
+        displayMagicSquare(result, magicSquare);
+    }
+
+    function generateEvenOrderMagicSquare(n) {
+        const magicSquare = [];
+        const maxValue = n * n;
+
+        for (let i = 0; i < n; i++) {
+            magicSquare[i] = [];
+            for (let j = 0; j < n; j++) {
+                magicSquare[i][j] = i * n + j + 1;
+            }
+        }
+
+        const halfN = n / 2;
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < halfN; j++) {
+                const temp = magicSquare[j][i];
+                magicSquare[j][i] = magicSquare[n - 1 - j][i];
+                magicSquare[n - 1 - j][i] = temp;
+            }
+        }
+
+        let counter = maxValue;
+
+        for (let i = 0; i < halfN; i++) {
+            for (let j = 0; j < n; j++) {
+                counter--;
+
+                if (j >= halfN && j < n - halfN) {
+                    continue;
+                }
+
+                const temp = magicSquare[i][j];
+                magicSquare[i][j] = counter;
+                magicSquare[n - 1 - i][j] = counter - 1;
+                counter--;
+
+                if (counter === 0) {
+                    break;
+                }
+            }
+        }
+
+        return magicSquare;
+    }
+
+    function displayMagicSquare(element, square) {
+        element.innerHTML = "<strong>Magic Square:</strong><br>";
+        for (let i = 0; i < square.length; i++) {
+            for (let j = 0; j < square[i].length; j++) {
+                element.innerHTML += square[i][j] + "\t";
+            }
+            element.innerHTML += "<br>";
+        }
+    }
+</script>
+
+</body>
+</html>
