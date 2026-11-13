@@ -28,11 +28,11 @@
     <text x="265" y="150">parseAnagramInput(raw)</text>
     <text x="265" y="190" fill="#5d5d6b">letters "dirtyroom", or an error message</text>
     <text x="265" y="230">loadDictionary()</text>
-    <text x="462" y="262" fill="#5d5d6b">first call: fetch words.txt,</text>
+    <text x="462" y="262" fill="#5d5d6b">first call: fetch words + tiers,</text>
     <text x="462" y="278" fill="#5d5d6b">bucket by length; then cached</text>
     <text x="265" y="322">solveAnagram(dictionary, letters, options)</text>
     <text x="462" y="354" fill="#5d5d6b">letter-count check per candidate word</text>
-    <text x="265" y="374" fill="#5d5d6b">words, two-word pairs, flags</text>
-    <text x="90" y="414" fill="#5d5d6b">grouped, sortable results</text>
+    <text x="265" y="374" fill="#5d5d6b">ranked words and two-word pairs</text>
+    <text x="90" y="414" fill="#5d5d6b">anagrams first, rest collapsed</text>
   </g>
 </svg>
