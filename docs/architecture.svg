@@ -17,7 +17,7 @@
     <text x="40" y="118" fill="#5d5d6b">index.html + src/main.js: hash router, navigation state, theme</text>
 
     <text x="40" y="180" font-weight="600">Views (src/ui/views)</text>
-    <text x="40" y="238" fill="#5d5d6b">Shared UI: dom.js (element builder), icons.js, toast.js</text>
+    <text x="40" y="238" fill="#5d5d6b">Shared UI: components/ (grid, tiles), dom.js, icons.js, route.js, toast.js</text>
 
     <text x="40" y="294" font-weight="600">Services (src/services)</text>
     <text x="40" y="316" fill="#5d5d6b">dictionary.js, storage.js, clipboard.js</text>
@@ -26,7 +26,7 @@
     <text x="412" y="316" fill="#5d5d6b">anagram.js, magic-square.js (no DOM, no network)</text>
 
     <text x="40" y="376" font-weight="600">Data</text>
-    <text x="40" y="396" fill="#5d5d6b">data/words.txt (ENABLE, 172,823 words)</text>
+    <text x="40" y="396" fill="#5d5d6b">words.txt (ENABLE) + word-tiers.txt (SCOWL)</text>
 
     <text x="412" y="376" font-weight="600">Tests (node --test)</text>
     <text x="412" y="396" fill="#5d5d6b">tests/*.test.js import src/lib directly</text>

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   MAX_ORDER,
+  MAX_STEP_ORDER,
+  buildConstructionSteps,
   classifyOrder,
   formatSquare,
   generateMagicSquare,
@@ -137,4 +139,33 @@ test('the largest order generates quickly', () => {
   const started = performance.now();
   generateMagicSquare(MAX_ORDER);
   assert.ok(performance.now() - started < 200);
+});
+
+test('replaying the construction steps reproduces the generated square', () => {
+  for (let order = 1; order <= 30; order++) {
+    if (order === 2) continue;
+    const steps = buildConstructionSteps(order);
+    const grid = Array.from({ length: order }, () => new Array(order).fill(0));
+    for (const step of steps) {
+      assert.ok(step.caption.length > 0);
+      assert.ok(step.cells.length > 0);
+      for (const { row, column, value } of step.cells) grid[row][column] = value;
+    }
+    assert.deepEqual(grid, generateMagicSquare(order), `order ${order}`);
+  }
+  assert.ok(MAX_STEP_ORDER >= 6);
+});
+
+test('construction steps: odd orders place one number per step, in order', () => {
+  const steps = buildConstructionSteps(5);
+  assert.equal(steps.length, 25);
+  assert.deepEqual(steps.map((step) => step.cells[0].value), Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.deepEqual(steps[0].cells, [{ row: 0, column: 2, value: 1 }]);
+  assert.match(steps[5].caption, /step down/);
+});
+
+test('construction steps reject orders with no square', () => {
+  for (const bad of [2, 0, -1, 2.5, MAX_ORDER + 1]) {
+    assert.throws(() => buildConstructionSteps(bad), RangeError);
+  }
 });

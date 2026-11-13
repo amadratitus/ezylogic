@@ -1,15 +1,16 @@
-import { MAX_LETTERS, parseAnagramInput, solveAnagram, sortWords } from '../../lib/anagram.js';
+import { MAX_LETTERS, parseAnagramInput, solveAnagram, sortWords, wordQuality } from '../../lib/anagram.js';
 import { loadDictionary } from '../../services/dictionary.js';
 import { createRecentList } from '../../services/storage.js';
+import { letterTiles } from '../components/tiles.js';
 import { formatNumber, h, plural, setChildren } from '../dom.js';
 import { icon } from '../icons.js';
+import { replaceRouteQuery, routeQuery } from '../route.js';
 import { copyWithToast } from '../toast.js';
 
-const EXAMPLES = ['listen', 'triangle', 'dirty room', 'stressed', 'astronomer'];
+const EXAMPLES = ['listen', 'triangle', 'dormitory', 'stressed', 'astronomer'];
 const DEFAULT_MIN_LENGTH = 3;
-/** Words rendered per group before a "Show all" button appears. */
-const GROUP_PREVIEW_SIZE = 240;
-const SORT_LABELS = { length: 'Longest first', az: 'A to Z', za: 'Z to A' };
+/** How many items a list shows before "Show more", and how many each press adds. */
+const PAGE = { full: 24, pairs: 8, pairsMore: 24, words: 48 };
 
 const recentInputs = createRecentList('anagram-magic:recent-words');
 
@@ -19,112 +20,111 @@ function parseLengthOptions(minRaw, maxRaw, letterCount) {
   const maxText = String(maxRaw).trim();
   const min = minText === '' ? DEFAULT_MIN_LENGTH : Number(minText);
   const max = maxText === '' ? letterCount : Number(maxText);
-  if (!Number.isInteger(min) || min < 1) return { ok: false, error: 'Minimum length must be a whole number of 1 or more.' };
-  if (!Number.isInteger(max) || max < 1) return { ok: false, error: 'Maximum length must be a whole number of 1 or more.' };
-  if (maxText !== '' && max < min) return { ok: false, error: 'Maximum length cannot be smaller than minimum length.' };
+  if (!Number.isInteger(min) || min < 1) return { ok: false, error: 'Shortest word must be a whole number of 1 or more.' };
+  if (!Number.isInteger(max) || max < 1) return { ok: false, error: 'Longest word must be a whole number of 1 or more.' };
+  if (maxText !== '' && max < min) return { ok: false, error: 'Longest word cannot be smaller than shortest word.' };
   // Never ask for words longer than the input, and keep full anagrams reachable.
   const maxLength = Math.min(max, letterCount);
   return { ok: true, minLength: Math.min(min, maxLength), maxLength };
-}
-
-function groupByLength(words) {
-  const groups = new Map();
-  for (const word of words) {
-    const group = groups.get(word.length);
-    if (group) group.push(word);
-    else groups.set(word.length, [word]);
-  }
-  return [...groups.entries()].sort((a, b) => b[0] - a[0]);
 }
 
 export function renderAnagramView(root) {
   /** View state. `result` is null until the first successful solve. */
   const state = {
     result: null,
+    dictionary: null,
     ignoredCount: 0,
-    sort: 'length',
-    lengthFilter: null,
-    expandedGroups: new Set(),
+    /** Per-list display state, keyed by list id: how many shown, open/closed, rare visible. */
+    shown: new Map(),
+    open: new Set(),
+    rareVisible: new Set(),
   };
   let solveToken = 0;
   let disposed = false;
 
   // ---- Form -------------------------------------------------------------
   const input = h('input', {
-    id: 'anagram-input',
-    class: 'input input--large',
-    type: 'text',
-    name: 'word',
-    placeholder: 'e.g. listen',
-    autocomplete: 'off',
-    autocapitalize: 'off',
-    spellcheck: 'false',
-    maxlength: '80',
-    'aria-describedby': 'anagram-hint anagram-error',
+    id: 'anagram-input', class: 'input input--hero', type: 'text', name: 'word',
+    placeholder: 'Type a word or phrase', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+    maxlength: '80', enterkeyhint: 'search', 'aria-describedby': 'anagram-hint anagram-error',
   });
+  const clearButton = h('button', { class: 'input-clear', type: 'button', 'aria-label': 'Clear', title: 'Clear', hidden: true, onClick: resetAll }, icon('close', 16));
+  const solveButton = h('button', { class: 'button button--primary button--hero', type: 'submit' }, 'Solve');
   const errorMessage = h('p', { id: 'anagram-error', class: 'field__error', role: 'alert' });
-  const minInput = h('input', {
-    id: 'anagram-min', class: 'input input--small', type: 'number', inputmode: 'numeric',
-    min: '1', max: String(MAX_LETTERS), value: String(DEFAULT_MIN_LENGTH),
-  });
-  const maxInput = h('input', {
-    id: 'anagram-max', class: 'input input--small', type: 'number', inputmode: 'numeric',
-    min: '1', max: String(MAX_LETTERS), placeholder: 'Any',
-  });
-  const phraseToggle = h('input', { id: 'anagram-phrases', type: 'checkbox', class: 'checkbox' });
-  const solveButton = h('button', { class: 'button button--primary button--large', type: 'submit' }, icon('search'), 'Solve');
-  const clearButton = h('button', { class: 'button button--large', type: 'button', onClick: resetAll }, icon('reset'), 'Clear');
-  const recentRow = h('div', { class: 'chip-row' });
-  const results = h('section', { class: 'results', 'aria-label': 'Results', 'aria-live': 'polite' });
+
+  const minInput = h('input', { id: 'anagram-min', class: 'input input--number', type: 'number', inputmode: 'numeric', min: '1', max: String(MAX_LETTERS), value: String(DEFAULT_MIN_LENGTH) });
+  const maxInput = h('input', { id: 'anagram-max', class: 'input input--number', type: 'number', inputmode: 'numeric', min: '1', max: String(MAX_LETTERS), placeholder: 'Any' });
+  const pairToggle = h('input', { id: 'anagram-pairs', type: 'checkbox', class: 'checkbox', checked: true });
+  const orderSelect = h(
+    'select',
+    { id: 'anagram-order', class: 'select' },
+    h('option', { value: 'best' }, 'Most common first'),
+    h('option', { value: 'az' }, 'A to Z'),
+  );
+  const filterPanel = h(
+    'div',
+    { id: 'anagram-filters', class: 'filters', hidden: true },
+    h('div', { class: 'filter' }, h('label', { for: 'anagram-min' }, 'Shortest word'), minInput),
+    h('div', { class: 'filter' }, h('label', { for: 'anagram-max' }, 'Longest word'), maxInput),
+    h('div', { class: 'filter' }, h('label', { for: 'anagram-order' }, 'Order'), orderSelect),
+    h('label', { class: 'filter filter--check', for: 'anagram-pairs' }, pairToggle, 'Two-word anagrams'),
+  );
+  const filterCount = h('span', { class: 'filter-count', hidden: true });
+  const filterButton = h(
+    'button',
+    {
+      class: 'button button--quiet', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'anagram-filters',
+      onClick: () => {
+        filterPanel.hidden = !filterPanel.hidden;
+        filterButton.setAttribute('aria-expanded', String(!filterPanel.hidden));
+      },
+    },
+    icon('sliders', 16), 'Filters', filterCount,
+  );
+  const results = h('section', { class: 'results', 'aria-label': 'Results' });
 
   const form = h(
     'form',
-    { class: 'panel', novalidate: true, onSubmit: (event) => { event.preventDefault(); solve(); } },
+    { class: 'composer', novalidate: true, onSubmit: (event) => { event.preventDefault(); solve(); } },
+    h('label', { class: 'field__label', for: 'anagram-input' }, 'Your letters'),
+    h('div', { class: 'composer__row' }, h('div', { class: 'input-wrap' }, input, clearButton), solveButton),
+    errorMessage,
     h(
       'div',
-      { class: 'field' },
-      h('label', { class: 'field__label', for: 'anagram-input' }, 'Word or letters'),
-      h('div', { class: 'input-row' }, input, solveButton, clearButton),
+      { class: 'composer__meta' },
       h('p', { id: 'anagram-hint', class: 'field__hint' }, `2 to ${MAX_LETTERS} letters. Capitals, spaces and punctuation are ignored.`),
-      errorMessage,
+      filterButton,
     ),
-    h(
-      'div',
-      { class: 'options' },
-      h('div', { class: 'option' }, h('label', { for: 'anagram-min' }, 'Min length'), minInput),
-      h('div', { class: 'option' }, h('label', { for: 'anagram-max' }, 'Max length'), maxInput),
-      h('label', { class: 'option option--check', for: 'anagram-phrases' }, phraseToggle, 'Two-word anagrams'),
-    ),
-    h(
-      'div',
-      { class: 'chip-row' },
-      h('span', { class: 'chip-row__label' }, 'Try'),
-      EXAMPLES.map((example) =>
-        h('button', { class: 'chip', type: 'button', onClick: () => runWith(example) }, example),
-      ),
-    ),
-    recentRow,
+    filterPanel,
   );
 
-  for (const control of [minInput, maxInput, phraseToggle]) {
-    control.addEventListener('change', () => { if (state.result) solve({ remember: false }); });
+  for (const control of [minInput, maxInput, pairToggle]) {
+    control.addEventListener('change', () => { updateFilterCount(); if (state.result) solve({ remember: false }); });
   }
-  input.addEventListener('input', () => setError(''));
+  orderSelect.addEventListener('change', () => { updateFilterCount(); if (state.result) renderResults(); });
+  input.addEventListener('input', () => { setError(''); clearButton.hidden = input.value === ''; });
 
   root.append(
     h(
       'header',
       { class: 'page-header' },
       h('h1', { tabindex: '-1' }, 'Anagram Solver'),
-      h('p', { class: 'page-header__lead' }, 'Enter a word or phrase to find the real English words hidden in its letters.'),
+      h('p', { class: 'page-header__lead' }, 'Find the real English words hiding in any set of letters.'),
     ),
     form,
     results,
   );
-  renderRecent();
-  renderIdle();
+
   // Warm the dictionary so the first solve is instant; errors surface on solve.
   loadDictionary().catch(() => {});
+  const initial = routeQuery().get('q');
+  if (initial) {
+    input.value = initial.slice(0, 80);
+    clearButton.hidden = false;
+    solve();
+  } else {
+    renderIdle();
+  }
 
   // ---- Actions ----------------------------------------------------------
   function setError(message) {
@@ -133,20 +133,42 @@ export function renderAnagramView(root) {
     else input.removeAttribute('aria-invalid');
   }
 
+  function updateFilterCount() {
+    const active =
+      Number(minInput.value.trim() !== String(DEFAULT_MIN_LENGTH)) +
+      Number(maxInput.value.trim() !== '') +
+      Number(orderSelect.value !== 'best') +
+      Number(!pairToggle.checked);
+    filterCount.hidden = active === 0;
+    filterCount.textContent = String(active);
+    filterCount.setAttribute('aria-label', `${active} changed`);
+  }
+
   function runWith(text) {
     input.value = text;
+    clearButton.hidden = false;
     solve();
+  }
+
+  function resetDisplayState() {
+    state.shown.clear();
+    state.open.clear();
+    state.rareVisible.clear();
   }
 
   function resetAll() {
     solveToken++;
     input.value = '';
+    clearButton.hidden = true;
     minInput.value = String(DEFAULT_MIN_LENGTH);
     maxInput.value = '';
-    phraseToggle.checked = false;
-    Object.assign(state, { result: null, ignoredCount: 0, sort: 'length', lengthFilter: null });
-    state.expandedGroups.clear();
+    orderSelect.value = 'best';
+    pairToggle.checked = true;
+    updateFilterCount();
+    state.result = null;
+    resetDisplayState();
     setError('');
+    replaceRouteQuery({});
     renderIdle();
     input.focus();
   }
@@ -161,16 +183,17 @@ export function renderAnagramView(root) {
     const lengths = parseLengthOptions(minInput.value, maxInput.value, parsed.letters.length);
     if (!lengths.ok) {
       setError(lengths.error);
+      filterPanel.hidden = false;
+      filterButton.setAttribute('aria-expanded', 'true');
       return;
     }
     setError('');
 
     const token = ++solveToken;
-    renderLoading();
+    if (!state.dictionary) renderLoading();
     solveButton.disabled = true;
-    let dictionary;
     try {
-      dictionary = await loadDictionary();
+      state.dictionary = await loadDictionary();
     } catch {
       if (token === solveToken && !disposed) renderLoadError();
       return;
@@ -179,36 +202,20 @@ export function renderAnagramView(root) {
     }
     if (token !== solveToken || disposed) return; // superseded by a newer action
 
-    state.result = solveAnagram(dictionary, parsed.letters, {
+    state.result = solveAnagram(state.dictionary, parsed.letters, {
       minLength: lengths.minLength,
       maxLength: lengths.maxLength,
-      includePhrases: phraseToggle.checked,
+      includePhrases: pairToggle.checked,
+      phraseLimit: 500,
     });
     state.ignoredCount = parsed.ignoredCount;
-    state.lengthFilter = null;
-    state.expandedGroups.clear();
-    if (remember) {
-      recentInputs.add(input.value.trim().toLowerCase());
-      renderRecent();
-    }
+    resetDisplayState();
+    if (remember) recentInputs.add(input.value.trim().toLowerCase());
+    replaceRouteQuery({ q: input.value.trim() });
     renderResults();
   }
 
-  // ---- Rendering --------------------------------------------------------
-  function renderRecent() {
-    const items = recentInputs.read();
-    recentRow.hidden = items.length === 0;
-    setChildren(
-      recentRow,
-      h('span', { class: 'chip-row__label' }, 'Recent'),
-      items.map((item) => h('button', { class: 'chip', type: 'button', onClick: () => runWith(item) }, item)),
-      h('button', {
-        class: 'link-button', type: 'button',
-        onClick: () => { recentInputs.clear(); renderRecent(); },
-      }, 'Clear recent'),
-    );
-  }
-
+  // ---- Rendering: states -------------------------------------------------
   function stateBlock(iconName, title, text, action) {
     return h(
       'div',
@@ -221,167 +228,240 @@ export function renderAnagramView(root) {
   }
 
   function renderIdle() {
-    setChildren(results, stateBlock('letters', 'Results will appear here', 'Type a word above and press Enter, or pick an example.'));
+    root.classList.remove('has-results');
+    const recent = recentInputs.read();
+    setChildren(
+      results,
+      h(
+        'div',
+        { class: 'starter' },
+        h(
+          'div',
+          { class: 'starter__group' },
+          h('p', { class: 'starter__label' }, 'Try one of these'),
+          h('div', { class: 'chip-row' }, EXAMPLES.map((example) => h('button', { class: 'chip chip--word', type: 'button', onClick: () => runWith(example) }, example))),
+        ),
+        recent.length > 0 && h(
+          'div',
+          { class: 'starter__group' },
+          h('p', { class: 'starter__label' }, 'Recent'),
+          h(
+            'div',
+            { class: 'chip-row' },
+            recent.map((item) => h('button', { class: 'chip chip--word', type: 'button', onClick: () => runWith(item) }, item)),
+            h('button', { class: 'link-button', type: 'button', onClick: () => { recentInputs.clear(); renderIdle(); } }, 'Clear recent'),
+          ),
+        ),
+      ),
+    );
   }
 
   function renderLoading() {
-    setChildren(
-      results,
-      h('div', { class: 'state', role: 'status' }, h('span', { class: 'spinner' }), h('p', { class: 'state__title' }, 'Loading dictionary…')),
-    );
+    setChildren(results, h('div', { class: 'state', role: 'status' }, h('span', { class: 'spinner' }), h('p', { class: 'state__title' }, 'Loading dictionary…')));
   }
 
   function renderLoadError() {
     setChildren(
       results,
-      stateBlock(
-        'alert',
-        'The dictionary could not be loaded',
-        'Check your connection, then try again.',
-        h('button', { class: 'button', type: 'button', onClick: () => solve({ remember: false }) }, 'Try again'),
-      ),
+      stateBlock('alert', 'The dictionary could not be loaded', 'Check your connection, then try again.',
+        h('button', { class: 'button', type: 'button', onClick: () => solve({ remember: false }) }, 'Try again')),
     );
   }
 
-  function wordChip(text) {
-    return h(
-      'li',
-      {},
-      h('button', {
-        class: 'word', type: 'button', title: 'Copy', 'aria-label': `Copy ${text}`,
-        onClick: () => copyWithToast(text, `Copied “${text}”`),
-      }, h('span', {}, text), icon('copy', 13)),
-    );
+  // ---- Rendering: results ------------------------------------------------
+  /** A word the user can select to copy. Feedback appears on the word itself. */
+  function copyable(text, className, content = text) {
+    const button = h('button', { class: className, type: 'button', 'aria-label': `Copy ${text}` }, content);
+    button.addEventListener('click', async () => {
+      if (await copyWithToast(text, `Copied “${text}”`)) {
+        button.classList.add('is-copied');
+        setTimeout(() => button.classList.remove('is-copied'), 1200);
+      }
+    });
+    return button;
   }
 
-  function wordGroup(key, title, badge, words) {
-    const expanded = state.expandedGroups.has(key);
-    const visible = expanded ? words : words.slice(0, GROUP_PREVIEW_SIZE);
+  function showMoreButton(key, total, shown, step) {
+    if (shown >= total) return null;
+    const next = Math.min(step, total - shown);
+    return h('button', {
+      class: 'button button--quiet show-more', type: 'button',
+      onClick: () => { state.shown.set(key, shown + step); renderResults(); },
+    }, `Show ${formatNumber(next)} more`, h('span', { class: 'show-more__rest' }, `of ${formatNumber(total - shown)}`));
+  }
+
+  function orderWords(words) {
+    return orderSelect.value === 'az' ? sortWords(words, 'az') : words; // already ranked best first
+  }
+
+  function fullSection(letters, fullWords) {
+    if (fullWords.length === 0) {
+      return h(
+        'section',
+        { class: 'block block--feature block--none' },
+        h('h2', { class: 'block__title' }, 'No single-word anagram'),
+        h('p', { class: 'block__text' }, `No other dictionary word uses all ${letters.length} letters.`),
+      );
+    }
+    const shown = state.shown.get('full') ?? PAGE.full;
     return h(
       'section',
-      { class: 'group' },
+      { class: 'block block--feature' },
       h(
         'header',
-        { class: 'group__header' },
-        h('h3', { class: 'group__title' }, title),
-        badge && h('span', { class: 'badge badge--accent' }, badge),
-        h('span', { class: 'group__count' }, formatNumber(words.length)),
+        { class: 'block__header' },
+        h('h2', { class: 'block__title' }, plural(fullWords.length, 'anagram')),
+        h('p', { class: 'block__text' }, `Using all ${letters.length} letters`),
       ),
-      h('ul', { class: 'word-list' }, visible.map(wordChip)),
-      visible.length < words.length &&
-        h('button', {
-          class: 'button button--small', type: 'button',
-          onClick: () => { state.expandedGroups.add(key); renderResults(); },
-        }, `Show all ${formatNumber(words.length)}`),
+      h(
+        'ul',
+        { class: 'feature-words' },
+        orderWords(fullWords).slice(0, shown).map((word) => {
+          const rare = wordQuality(state.dictionary, word) === 'rare';
+          return h('li', {}, copyable(word, rare ? 'feature-word feature-word--rare' : 'feature-word',
+            [h('span', { class: 'feature-word__text' }, word), rare && h('span', { class: 'feature-word__tag' }, 'rare')]));
+        }),
+      ),
+      showMoreButton('full', fullWords.length, shown, PAGE.full),
+    );
+  }
+
+  function pairSection(result) {
+    if (!pairToggle.checked) return null;
+    const shown = state.shown.get('pairs') ?? PAGE.pairs;
+    const { phrases } = result;
+    return h(
+      'section',
+      { class: 'block' },
+      h(
+        'header',
+        { class: 'block__header' },
+        h('h2', { class: 'block__title' }, 'Two words'),
+        h('p', { class: 'block__text' },
+          result.phraseTotal === 0 ? 'No two dictionary words use all the letters together.'
+            : `${plural(result.phraseTotal, 'pair')} using all the letters, most readable first`),
+      ),
+      phrases.length > 0 && h(
+        'ul',
+        { class: 'pair-list' },
+        phrases.slice(0, shown).map((pair) =>
+          h('li', {}, copyable(pair.join(' '), 'pair', [pair[0], h('span', { class: 'pair__plus', 'aria-hidden': 'true' }, '+'), pair[1]]))),
+      ),
+      showMoreButton('pairs', phrases.length, shown, PAGE.pairsMore),
+      result.phrasesTruncated && shown >= phrases.length &&
+        h('p', { class: 'block__note' }, `Showing the best ${formatNumber(phrases.length)} of ${formatNumber(result.phraseTotal)} pairs.`),
+    );
+  }
+
+  function lengthGroup(length, words, openByDefault) {
+    const key = `len-${length}`;
+    const isOpen = state.open.has(key) || (openByDefault && !state.open.has(`${key}-closed`));
+    const usual = words.filter((word) => wordQuality(state.dictionary, word) !== 'rare');
+    const rare = words.filter((word) => wordQuality(state.dictionary, word) === 'rare');
+    const preview = (usual.length > 0 ? usual : rare).slice(0, 4).join(', ');
+    const header = h(
+      'button',
+      {
+        class: 'group__toggle', type: 'button', 'aria-expanded': String(isOpen), 'aria-controls': `group-${length}`,
+        onClick: () => {
+          if (isOpen) { state.open.delete(key); state.open.add(`${key}-closed`); }
+          else { state.open.add(key); state.open.delete(`${key}-closed`); }
+          renderResults();
+        },
+      },
+      h('span', { class: 'group__title' }, `${length} letters`),
+      h('span', { class: 'group__count' }, formatNumber(words.length)),
+      !isOpen && h('span', { class: 'group__preview' }, preview, words.length > 4 ? ', …' : ''),
+      icon('chevronDown', 16),
+    );
+    if (!isOpen) return h('section', { class: 'group' }, h('h3', { class: 'group__heading' }, header));
+
+    const shown = state.shown.get(key) ?? PAGE.words;
+    const rareShown = state.rareVisible.has(key) || usual.length === 0;
+    const visible = orderWords(rareShown ? words : usual);
+    return h(
+      'section',
+      { class: 'group is-open' },
+      h('h3', { class: 'group__heading' }, header),
+      h(
+        'div',
+        { id: `group-${length}`, class: 'group__body' },
+        h(
+          'ul',
+          { class: 'word-flow' },
+          visible.slice(0, shown).map((word) =>
+            h('li', {}, copyable(word, wordQuality(state.dictionary, word) === 'rare' ? 'word word--rare' : 'word'))),
+        ),
+        h(
+          'div',
+          { class: 'group__more' },
+          showMoreButton(key, visible.length, shown, PAGE.words),
+          rare.length > 0 && usual.length > 0 && h('button', {
+            class: 'link-button', type: 'button',
+            onClick: () => { if (rareShown) state.rareVisible.delete(key); else state.rareVisible.add(key); renderResults(); },
+          }, rareShown ? 'Hide rare words' : `Show ${plural(rare.length, 'rare word')}`),
+        ),
+      ),
+    );
+  }
+
+  function shorterSection(letters, shorterWords, hasFeature) {
+    if (shorterWords.length === 0) return null;
+    const groups = new Map();
+    for (const word of shorterWords) {
+      if (groups.has(word.length)) groups.get(word.length).push(word);
+      else groups.set(word.length, [word]);
+    }
+    const entries = [...groups.entries()].sort((a, b) => b[0] - a[0]);
+    return h(
+      'section',
+      { class: 'block' },
+      h(
+        'header',
+        { class: 'block__header' },
+        h('h2', { class: 'block__title' }, 'Shorter words'),
+        h('p', { class: 'block__text' }, `${plural(shorterWords.length, 'word')} using some of the letters`),
+      ),
+      h('div', { class: 'groups' }, entries.map(([length, words], index) => lengthGroup(length, words, index === 0 && !hasFeature))),
     );
   }
 
   function renderResults() {
     const { result } = state;
-    const { letters, words, phrases } = result;
-    const display = letters.toUpperCase();
-    const groups = groupByLength(words);
-    const filtered = state.lengthFilter === null ? words : words.filter((word) => word.length === state.lengthFilter);
-    const fullCount = words.filter((word) => word.length === letters.length).length;
+    const { letters, words } = result;
+    const fullWords = words.filter((word) => word.length === letters.length);
+    const shorterWords = words.filter((word) => word.length < letters.length);
 
     const notes = [];
-    if (result.inputIsWord) notes.push(`“${letters}” is itself a dictionary word.`);
+    if (result.inputIsWord) notes.push(`“${letters}” is a dictionary word itself.`);
     if (state.ignoredCount > 0) notes.push(`${plural(state.ignoredCount, 'character')} that ${state.ignoredCount === 1 ? 'is not a letter was' : 'are not letters were'} ignored.`);
 
-    const summary = h(
+    const header = h(
       'header',
-      { class: 'results__summary' },
-      h(
-        'div',
-        {},
-        h('h2', { class: 'results__title' }, `${plural(words.length, 'word')} from `, h('span', { class: 'mono' }, display)),
-        h(
-          'p',
-          { class: 'results__meta' },
-          fullCount > 0 ? `${plural(fullCount, 'full anagram')} using all ${letters.length} letters.` : `No other word uses all ${letters.length} letters.`,
-          notes.map((note) => ` ${note}`),
-        ),
-      ),
+      { class: 'results__header' },
+      h('div', { class: 'results__letters' }, letterTiles(letters.toUpperCase(), { size: 'sm', label: `Letters: ${letters.toUpperCase().split('').join(' ')}` })),
+      h('p', { class: 'results__hint' }, notes.join(' '), notes.length > 0 && ' ', 'Select any word to copy it.'),
     );
+    const footer = words.length > 0 && h(
+      'div',
+      { class: 'results__footer' },
+      h('button', {
+        class: 'button', type: 'button',
+        onClick: () => copyWithToast(orderWords(words).join('\n'), `Copied ${plural(words.length, 'word')}`),
+      }, icon('copy', 15), `Copy all ${formatNumber(words.length)} words`),
+    );
+    root.classList.add('has-results');
 
-    if (words.length === 0 && phrases.length === 0) {
+    if (words.length === 0 && result.phraseTotal === 0) {
       setChildren(
         results,
-        summary,
-        stateBlock(
-          'search',
-          'No words found',
-          phraseToggle.checked
-            ? 'No dictionary word or two-word pair can be made from these letters. Try lowering the minimum length.'
-            : 'No dictionary word can be made from these letters with the current length range. Try lowering the minimum length or turning on two-word anagrams.',
-        ),
+        header,
+        stateBlock('search', 'No words found', 'No dictionary word can be made from these letters with the current filters. Try a shorter minimum length.'),
       );
       return;
     }
-
-    const sortSelect = h(
-      'select',
-      { id: 'anagram-sort', class: 'select', onChange: (event) => { state.sort = event.target.value; renderResults(); } },
-      Object.entries(SORT_LABELS).map(([value, label]) => h('option', { value, selected: state.sort === value }, label)),
-    );
-    const filterButton = (label, value, count) =>
-      h('button', {
-        class: 'chip chip--toggle', type: 'button',
-        'aria-pressed': String(state.lengthFilter === value),
-        onClick: () => { state.lengthFilter = value; renderResults(); },
-      }, label, h('span', { class: 'chip__count' }, formatNumber(count)));
-
-    const toolbar = words.length > 0 && h(
-      'div',
-      { class: 'toolbar' },
-      h(
-        'div',
-        { class: 'chip-row', role: 'group', 'aria-label': 'Filter by word length' },
-        filterButton('All', null, words.length),
-        groups.map(([length, group]) => filterButton(`${length} letters`, length, group.length)),
-      ),
-      h(
-        'div',
-        { class: 'toolbar__actions' },
-        h('label', { class: 'toolbar__label', for: 'anagram-sort' }, 'Sort'),
-        sortSelect,
-        h('button', {
-          class: 'button button--small', type: 'button',
-          onClick: () => copyWithToast(sortWords(filtered, state.sort).join('\n'), `Copied ${plural(filtered.length, 'word')}`),
-        }, icon('copy', 14), 'Copy all'),
-      ),
-    );
-
-    let wordSections;
-    if (state.sort === 'length') {
-      wordSections = groupByLength(filtered).map(([length, group]) =>
-        wordGroup(`len-${length}`, `${length} letters`, length === letters.length ? 'Full anagrams' : null, group),
-      );
-    } else {
-      wordSections = filtered.length > 0 && wordGroup(`flat-${state.sort}`, SORT_LABELS[state.sort], null, sortWords(filtered, state.sort));
-    }
-
-    const phraseSection = phraseToggle.checked && h(
-      'section',
-      { class: 'group' },
-      h(
-        'header',
-        { class: 'group__header' },
-        h('h3', { class: 'group__title' }, 'Two-word anagrams'),
-        h('span', { class: 'group__count' }, formatNumber(result.phraseTotal)),
-        phrases.length > 0 && h('button', {
-          class: 'button button--small group__action', type: 'button',
-          onClick: () => copyWithToast(phrases.map((pair) => pair.join(' ')).join('\n'), `Copied ${plural(phrases.length, 'pair')}`),
-        }, icon('copy', 14), 'Copy pairs'),
-      ),
-      phrases.length > 0
-        ? h('ul', { class: 'word-list' }, phrases.map((pair) => wordChip(pair.join(' '))))
-        : h('p', { class: 'group__empty' }, 'No two dictionary words use all of these letters together.'),
-      result.phrasesTruncated &&
-        h('p', { class: 'group__empty' }, `Showing the first ${formatNumber(phrases.length)} of ${formatNumber(result.phraseTotal)} pairs.`),
-    );
-
-    setChildren(results, summary, toolbar, wordSections, phraseSection);
+    const hasFeature = fullWords.length > 0 || result.phraseTotal > 0;
+    setChildren(results, header, fullSection(letters, fullWords), pairSection(result), shorterSection(letters, shorterWords, hasFeature), footer);
   }
 
   return () => {

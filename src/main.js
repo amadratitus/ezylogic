@@ -1,6 +1,7 @@
 // App shell: hash-based routing, navigation state and theme switching.
 import { h } from './ui/dom.js';
-import { icon } from './ui/icons.js';
+import { brandMark, icon } from './ui/icons.js';
+import { currentPath } from './ui/route.js';
 import { readJson, writeJson } from './services/storage.js';
 import { renderHomeView } from './ui/views/home.js';
 import { renderAnagramView } from './ui/views/anagram.js';
@@ -25,11 +26,6 @@ const themeButton = document.getElementById('theme-button');
 
 let cleanupView = null;
 let isFirstRender = true;
-
-function currentPath() {
-  const path = location.hash.replace(/^#/, '').split('?')[0];
-  return path === '' ? '/' : path.replace(/\/+$/, '') || '/';
-}
 
 function renderRoute() {
   const path = currentPath();
@@ -60,7 +56,7 @@ function renderRoute() {
 function setMenuOpen(open) {
   nav.classList.toggle('is-open', open);
   menuButton.setAttribute('aria-expanded', String(open));
-  menuButton.replaceChildren(icon(open ? 'close' : 'menu', 18));
+  menuButton.replaceChildren(icon(open ? 'close' : 'menu', 20));
 }
 
 function activeTheme() {
@@ -72,12 +68,13 @@ function activeTheme() {
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const next = theme === 'dark' ? 'light' : 'dark';
-  themeButton.replaceChildren(icon(theme === 'dark' ? 'sun' : 'moon', 18));
+  themeButton.replaceChildren(icon(theme === 'dark' ? 'sun' : 'moon', 20));
   themeButton.setAttribute('aria-label', `Switch to ${next} theme`);
   themeButton.title = `Switch to ${next} theme`;
+  document.dispatchEvent(new CustomEvent('themechange'));
 }
 
-document.getElementById('brand-mark').replaceChildren(icon('logo', 22));
+document.getElementById('brand-mark').replaceChildren(brandMark(30));
 menuButton.addEventListener('click', () => setMenuOpen(!nav.classList.contains('is-open')));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && nav.classList.contains('is-open')) {

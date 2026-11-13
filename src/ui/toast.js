@@ -13,7 +13,7 @@ export function showToast(message, kind = 'success') {
     region,
     h('div', { class: `toast toast--${kind}` }, icon(kind === 'error' ? 'alert' : 'check'), h('span', {}, message)),
   );
-  hideTimer = setTimeout(() => region.replaceChildren(), 2200);
+  hideTimer = setTimeout(() => region.replaceChildren(), 2000);
 }
 
 /** Copy text and confirm (or report failure) with a toast. */
