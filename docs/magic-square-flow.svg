@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">
+  <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#5d5d6b"/></marker></defs>
+  <rect width="760" height="520" fill="#ffffff"/>
+  <text x="24" y="30" font-size="16" font-weight="600" fill="#17171c">Flowchart: generating a magic square of size n</text>
+  <g fill="#f4f4f6" stroke="#cfcfd6">
+    <rect x="300" y="50" width="160" height="36" rx="18"/>
+    <path d="M380 108l110 34-110 34-110-34z"/>
+    <path d="M380 200l80 30-80 30-80-30z"/>
+    <path d="M380 284l80 30-80 30-80-30z"/>
+    <path d="M380 368l80 30-80 30-80-30z"/>
+  </g>
+  <g fill="#fdecea" stroke="#c0352b"><rect x="560" y="124" width="170" height="36" rx="6"/></g>
+  <g fill="#eeeefc" stroke="#5151cd">
+    <rect x="560" y="212" width="170" height="36" rx="6"/><rect x="560" y="296" width="170" height="36" rx="6"/>
+    <rect x="560" y="380" width="170" height="36" rx="6"/><rect x="30" y="380" width="170" height="36" rx="6"/>
+  </g>
+  <g fill="#e6f5ec" stroke="#17794a"><rect x="250" y="462" width="260" height="38" rx="6"/></g>
+  <g fill="#17171c" text-anchor="middle">
+    <text x="380" y="73">Input n</text>
+    <text x="380" y="139">Whole number,</text><text x="380" y="155">1 to 100, not 2?</text>
+    <text x="380" y="235">n = 1?</text>
+    <text x="380" y="319">n odd?</text>
+    <text x="380" y="403">n divisible by 4?</text>
+    <text x="645" y="147">Show error message</text>
+    <text x="645" y="235">Return [[1]]</text>
+    <text x="645" y="319">Siamese method</text>
+    <text x="645" y="403">Diagonal complement</text>
+    <text x="115" y="403">Strachey method</text>
+    <text x="380" y="486">Verify 1..n², rows, columns, diagonals</text>
+  </g>
+  <g fill="#5d5d6b" font-size="12">
+    <text x="500" y="134">no</text><text x="390" y="194">yes</text>
+    <text x="470" y="222">yes</text><text x="390" y="278">no</text>
+    <text x="470" y="306">yes</text><text x="390" y="362">no</text>
+    <text x="470" y="390">yes</text><text x="262" y="390">no</text>
+  </g>
+  <g stroke="#5d5d6b" stroke-width="1.5" fill="none" marker-end="url(#c)">
+    <path d="M380 86v20"/><path d="M490 142h68"/>
+    <path d="M380 176v22"/><path d="M460 230h98"/>
+    <path d="M380 260v22"/><path d="M460 314h98"/>
+    <path d="M380 344v22"/><path d="M460 398h98"/><path d="M300 398H202"/>
+    <path d="M115 416v65h133"/>
+    <path d="M740 230v251H512" /><path d="M730 314h10"/><path d="M730 398h10"/><path d="M730 230h10"/>
+  </g>
+</svg>
