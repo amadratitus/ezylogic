@@ -13,7 +13,7 @@ import { createPatternView, createSquareGrid } from '../components/square-grid.j
 import { formatNumber, h, setChildren } from '../dom.js';
 import { icon } from '../icons.js';
 import { replaceRouteQuery, routeQuery } from '../route.js';
-import { copyWithToast, showToast } from '../toast.js';
+import { announce, copyWithToast, showToast } from '../toast.js';
 
 const EXAMPLE_ORDERS = [3, 4, 5, 6, 8, 10];
 /** Above this size the colour pattern is shown first; numbers stay one tap away. */
@@ -146,6 +146,7 @@ export function renderMagicSquareView(root) {
     resetButton.hidden = false;
     replaceRouteQuery({ n: parsed.order });
     renderResult();
+    announce(`${parsed.order} by ${parsed.order} magic square generated. Every row, column and diagonal adds up to ${formatNumber(current.check.constant)}.`);
   }
 
   function renderIdle() {

@@ -21,12 +21,12 @@ export function renderAboutView(root) {
         'How the anagram solver works',
         h('p', {}, 'Your input is reduced to its letters A–Z. Capitals, spaces, digits and punctuation are ignored.'),
         h('p', {}, 'The solver keeps every dictionary word that can be spelled from those letters without using any letter more often than you supplied it. Words that use every letter are anagrams. Two-word anagrams are pairs that use every letter exactly once between them.'),
-        h('p', {}, 'Ranking only changes the order. Common words come first and rare ones are tucked away, but nothing valid is dropped.'),
+        h('p', {}, 'Ranking only changes the order. Widely known words come first and rare ones are tucked away, but nothing valid is dropped. Two-word results show readable pairs by default: no two-letter words, no rare words. Every other valid pair is one click away.'),
       ),
       card(
         'The word lists',
         h('p', {}, h('strong', {}, 'Words: '), 'ENABLE (Enhanced North American Benchmark Lexicon), 172,823 words, by Alan Beale and M. Cooper. Public domain.'),
-        h('p', {}, h('strong', {}, 'Commonness: '), 'SCOWL by Kevin Atkinson, used to decide which words are common, familiar or rare. Free to use with attribution.'),
+        h('p', {}, h('strong', {}, 'Ordering: '), 'SCOWL by Kevin Atkinson. SCOWL is a set of spelling lists graded by how widely a word is known, mostly judged by how many dictionaries include it. It is not a count of how often words are used, so “common” here is an estimate. Free to use with its copyright notice, which ships with this site.'),
         h(
           'ul',
           {},
@@ -53,7 +53,7 @@ export function renderAboutView(root) {
           'ul',
           {},
           h('li', {}, `Anagram input: 2 to ${MAX_LETTERS} letters.`),
-          h('li', {}, 'Two-word anagrams: the best 500 pairs are listed.'),
+          h('li', {}, 'Two-word anagrams: at most 500 pairs are listed, most readable first.'),
           h('li', {}, `Magic squares: sizes 1 to ${MAX_ORDER}. Size 2 is impossible, not unsupported.`),
           h('li', {}, `Step-by-step construction: up to ${MAX_STEP_ORDER} × ${MAX_STEP_ORDER}.`),
           h('li', {}, 'One square is generated per size, though others exist.'),

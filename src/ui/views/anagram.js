@@ -5,7 +5,7 @@ import { letterTiles } from '../components/tiles.js';
 import { formatNumber, h, plural, setChildren } from '../dom.js';
 import { icon } from '../icons.js';
 import { replaceRouteQuery, routeQuery } from '../route.js';
-import { copyWithToast } from '../toast.js';
+import { announce, copyWithToast } from '../toast.js';
 
 const EXAMPLES = ['listen', 'triangle', 'dormitory', 'stressed', 'astronomer'];
 const DEFAULT_MIN_LENGTH = 3;
@@ -41,6 +41,8 @@ export function renderAnagramView(root) {
   };
   let solveToken = 0;
   let disposed = false;
+  /** Where keyboard focus should land after the results are redrawn. */
+  let pendingFocus = null;
 
   // ---- Form -------------------------------------------------------------
   const input = h('input', {
@@ -55,6 +57,7 @@ export function renderAnagramView(root) {
   const minInput = h('input', { id: 'anagram-min', class: 'input input--number', type: 'number', inputmode: 'numeric', min: '1', max: String(MAX_LETTERS), value: String(DEFAULT_MIN_LENGTH) });
   const maxInput = h('input', { id: 'anagram-max', class: 'input input--number', type: 'number', inputmode: 'numeric', min: '1', max: String(MAX_LETTERS), placeholder: 'Any' });
   const pairToggle = h('input', { id: 'anagram-pairs', type: 'checkbox', class: 'checkbox', checked: true });
+  const allPairsToggle = h('input', { id: 'anagram-all-pairs', type: 'checkbox', class: 'checkbox' });
   const orderSelect = h(
     'select',
     { id: 'anagram-order', class: 'select' },
@@ -68,8 +71,11 @@ export function renderAnagramView(root) {
     h('div', { class: 'filter' }, h('label', { for: 'anagram-max' }, 'Longest word'), maxInput),
     h('div', { class: 'filter' }, h('label', { for: 'anagram-order' }, 'Order'), orderSelect),
     h('label', { class: 'filter filter--check', for: 'anagram-pairs' }, pairToggle, 'Two-word anagrams'),
+    h('label', { class: 'filter filter--check', for: 'anagram-all-pairs' }, allPairsToggle, 'Include rare and two-letter words in pairs'),
   );
-  const filterCount = h('span', { class: 'filter-count', hidden: true });
+  const filterCountNumber = h('span', { 'aria-hidden': 'true' });
+  const filterCountText = h('span', { class: 'sr-only' });
+  const filterCount = h('span', { class: 'filter-count', hidden: true }, filterCountNumber, filterCountText);
   const filterButton = h(
     'button',
     {
@@ -81,7 +87,7 @@ export function renderAnagramView(root) {
     },
     icon('sliders', 16), 'Filters', filterCount,
   );
-  const results = h('section', { class: 'results', 'aria-label': 'Results' });
+  const results = h('section', { class: 'results', 'aria-label': 'Results', tabindex: '-1' });
 
   const form = h(
     'form',
@@ -101,7 +107,9 @@ export function renderAnagramView(root) {
   for (const control of [minInput, maxInput, pairToggle]) {
     control.addEventListener('change', () => { updateFilterCount(); if (state.result) solve({ remember: false }); });
   }
-  orderSelect.addEventListener('change', () => { updateFilterCount(); if (state.result) renderResults(); });
+  for (const control of [orderSelect, allPairsToggle]) {
+    control.addEventListener('change', () => { updateFilterCount(); if (state.result) renderResults(); });
+  }
   input.addEventListener('input', () => { setError(''); clearButton.hidden = input.value === ''; });
 
   root.append(
@@ -138,10 +146,11 @@ export function renderAnagramView(root) {
       Number(minInput.value.trim() !== String(DEFAULT_MIN_LENGTH)) +
       Number(maxInput.value.trim() !== '') +
       Number(orderSelect.value !== 'best') +
-      Number(!pairToggle.checked);
+      Number(!pairToggle.checked) +
+      Number(allPairsToggle.checked);
     filterCount.hidden = active === 0;
-    filterCount.textContent = String(active);
-    filterCount.setAttribute('aria-label', `${active} changed`);
+    filterCountNumber.textContent = String(active);
+    filterCountText.textContent = ` (${active} changed)`;
   }
 
   function runWith(text) {
@@ -164,6 +173,7 @@ export function renderAnagramView(root) {
     maxInput.value = '';
     orderSelect.value = 'best';
     pairToggle.checked = true;
+    allPairsToggle.checked = false;
     updateFilterCount();
     state.result = null;
     resetDisplayState();
@@ -213,6 +223,7 @@ export function renderAnagramView(root) {
     if (remember) recentInputs.add(input.value.trim().toLowerCase());
     replaceRouteQuery({ q: input.value.trim() });
     renderResults();
+    announceResults();
   }
 
   // ---- Rendering: states -------------------------------------------------
@@ -271,7 +282,8 @@ export function renderAnagramView(root) {
   // ---- Rendering: results ------------------------------------------------
   /** A word the user can select to copy. Feedback appears on the word itself. */
   function copyable(text, className, content = text) {
-    const button = h('button', { class: className, type: 'button', 'aria-label': `Copy ${text}` }, content);
+    // The visible text stays part of the accessible name; "Copy" is added for screen readers.
+    const button = h('button', { class: className, type: 'button' }, h('span', { class: 'sr-only' }, 'Copy '), content);
     button.addEventListener('click', async () => {
       if (await copyWithToast(text, `Copied “${text}”`)) {
         button.classList.add('is-copied');
@@ -286,7 +298,7 @@ export function renderAnagramView(root) {
     const next = Math.min(step, total - shown);
     return h('button', {
       class: 'button button--quiet show-more', type: 'button',
-      onClick: () => { state.shown.set(key, shown + step); renderResults(); },
+      onClick: () => { state.shown.set(key, shown + step); pendingFocus = { list: key, index: shown }; renderResults(); },
     }, `Show ${formatNumber(next)} more`, h('span', { class: 'show-more__rest' }, `of ${formatNumber(total - shown)}`));
   }
 
@@ -315,7 +327,7 @@ export function renderAnagramView(root) {
       ),
       h(
         'ul',
-        { class: 'feature-words' },
+        { class: 'feature-words', dataset: { list: 'full' } },
         orderWords(fullWords).slice(0, shown).map((word) => {
           const rare = wordQuality(state.dictionary, word) === 'rare';
           return h('li', {}, copyable(word, rare ? 'feature-word feature-word--rare' : 'feature-word',
@@ -326,30 +338,45 @@ export function renderAnagramView(root) {
     );
   }
 
+  /** Pairs on screen: readable ones by default, every valid pair on request. */
+  function visiblePairs(result) {
+    const readableCount = Math.min(result.readablePhraseTotal, result.phrases.length);
+    return allPairsToggle.checked ? result.phrases : result.phrases.slice(0, readableCount);
+  }
+
   function pairSection(result) {
     if (!pairToggle.checked) return null;
     const shown = state.shown.get('pairs') ?? PAGE.pairs;
-    const { phrases } = result;
+    const pairs = visiblePairs(result);
+    const showingAll = allPairsToggle.checked;
+    const otherCount = result.phraseTotal - result.readablePhraseTotal;
+    let summary;
+    if (result.phraseTotal === 0) summary = 'No two dictionary words use all the letters together.';
+    else if (showingAll) summary = `${plural(result.phraseTotal, 'pair')} using all the letters, most readable first`;
+    else if (pairs.length === 0) summary = 'No readable pair uses all the letters.';
+    else summary = `${plural(result.readablePhraseTotal, 'readable pair')} using all the letters`;
     return h(
       'section',
       { class: 'block' },
-      h(
-        'header',
-        { class: 'block__header' },
-        h('h2', { class: 'block__title' }, 'Two words'),
-        h('p', { class: 'block__text' },
-          result.phraseTotal === 0 ? 'No two dictionary words use all the letters together.'
-            : `${plural(result.phraseTotal, 'pair')} using all the letters, most readable first`),
-      ),
-      phrases.length > 0 && h(
+      h('header', { class: 'block__header' }, h('h2', { class: 'block__title' }, 'Two words'), h('p', { class: 'block__text' }, summary)),
+      pairs.length > 0 && h(
         'ul',
-        { class: 'pair-list' },
-        phrases.slice(0, shown).map((pair) =>
+        { class: 'pair-list', dataset: { list: 'pairs' } },
+        pairs.slice(0, shown).map((pair) =>
           h('li', {}, copyable(pair.join(' '), 'pair', [pair[0], h('span', { class: 'pair__plus', 'aria-hidden': 'true' }, '+'), pair[1]]))),
       ),
-      showMoreButton('pairs', phrases.length, shown, PAGE.pairsMore),
-      result.phrasesTruncated && shown >= phrases.length &&
-        h('p', { class: 'block__note' }, `Showing the best ${formatNumber(phrases.length)} of ${formatNumber(result.phraseTotal)} pairs.`),
+      showMoreButton('pairs', pairs.length, shown, PAGE.pairsMore),
+      !showingAll && otherCount > 0 && shown >= pairs.length && h('button', {
+        class: 'link-button', type: 'button', dataset: { focus: 'all-pairs' },
+        onClick: () => {
+          allPairsToggle.checked = true;
+          updateFilterCount();
+          pendingFocus = { list: 'pairs', index: pairs.length };
+          renderResults();
+        },
+      }, `Show ${plural(otherCount, 'more pair')} that use rare or two-letter words`),
+      showingAll && result.phrasesTruncated && shown >= pairs.length &&
+        h('p', { class: 'block__note' }, `Showing the best ${formatNumber(pairs.length)} of ${formatNumber(result.phraseTotal)} pairs.`),
     );
   }
 
@@ -362,8 +389,10 @@ export function renderAnagramView(root) {
     const header = h(
       'button',
       {
-        class: 'group__toggle', type: 'button', 'aria-expanded': String(isOpen), 'aria-controls': `group-${length}`,
+        class: 'group__toggle', type: 'button', 'aria-expanded': String(isOpen), 'aria-controls': isOpen ? `group-${length}` : null,
+        dataset: { focus: `toggle-${key}` },
         onClick: () => {
+          pendingFocus = { key: `toggle-${key}` };
           if (isOpen) { state.open.delete(key); state.open.add(`${key}-closed`); }
           else { state.open.add(key); state.open.delete(`${key}-closed`); }
           renderResults();
@@ -388,7 +417,7 @@ export function renderAnagramView(root) {
         { id: `group-${length}`, class: 'group__body' },
         h(
           'ul',
-          { class: 'word-flow' },
+          { class: 'word-flow', dataset: { list: key } },
           visible.slice(0, shown).map((word) =>
             h('li', {}, copyable(word, wordQuality(state.dictionary, word) === 'rare' ? 'word word--rare' : 'word'))),
         ),
@@ -397,8 +426,12 @@ export function renderAnagramView(root) {
           { class: 'group__more' },
           showMoreButton(key, visible.length, shown, PAGE.words),
           rare.length > 0 && usual.length > 0 && h('button', {
-            class: 'link-button', type: 'button',
-            onClick: () => { if (rareShown) state.rareVisible.delete(key); else state.rareVisible.add(key); renderResults(); },
+            class: 'link-button', type: 'button', dataset: { focus: `rare-${key}` },
+            onClick: () => {
+              if (rareShown) state.rareVisible.delete(key); else state.rareVisible.add(key);
+              pendingFocus = { key: `rare-${key}` };
+              renderResults();
+            },
           }, rareShown ? 'Hide rare words' : `Show ${plural(rare.length, 'rare word')}`),
         ),
       ),
@@ -460,8 +493,29 @@ export function renderAnagramView(root) {
       );
       return;
     }
-    const hasFeature = fullWords.length > 0 || result.phraseTotal > 0;
+    const hasFeature = fullWords.length > 0 || (pairToggle.checked && visiblePairs(result).length > 0);
     setChildren(results, header, fullSection(letters, fullWords), pairSection(result), shorterSection(letters, shorterWords, hasFeature), footer);
+    restoreFocus();
+  }
+
+  /** Redrawing replaces the control that was activated, so put focus back where the user was. */
+  function restoreFocus() {
+    if (!pendingFocus) return;
+    const { key, list, index } = pendingFocus;
+    pendingFocus = null;
+    const target = list
+      ? results.querySelector(`[data-list="${list}"]`)?.children[index]?.querySelector('button')
+      : results.querySelector(`[data-focus="${key}"]`);
+    (target ?? results).focus();
+  }
+
+  function announceResults() {
+    const { result } = state;
+    const full = result.words.filter((word) => word.length === result.letters.length).length;
+    const parts = [full === 0 ? 'No single-word anagram' : plural(full, 'anagram')];
+    if (pairToggle.checked) parts.push(plural(visiblePairs(result).length, 'two-word pair'));
+    parts.push(plural(result.words.length - full, 'shorter word'));
+    announce(`Results for ${result.letters}: ${parts.join(', ')}.`);
   }
 
   return () => {

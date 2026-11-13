@@ -79,7 +79,10 @@ export function createSquareGrid({ order, label, onSelect = () => {}, maxCell = 
   }
 
   function clearTrace() {
-    traced.forEach((cell) => cell.classList.remove('cell--row', 'cell--column', 'cell--diagonal', 'cell--selected'));
+    traced.forEach((cell) => {
+      cell.classList.remove('cell--row', 'cell--column', 'cell--diagonal', 'cell--selected');
+      cell.removeAttribute('aria-selected');
+    });
     traced = [];
   }
 
@@ -97,6 +100,7 @@ export function createSquareGrid({ order, label, onSelect = () => {}, maxCell = 
         if (row + column === order - 1) add(cells[i][order - 1 - i], 'cell--diagonal');
       }
       add(cells[row][column], 'cell--selected');
+      cells[row][column].setAttribute('aria-selected', 'true');
     }
     if (notify) onSelect(selection);
   }

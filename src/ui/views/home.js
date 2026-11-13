@@ -8,7 +8,7 @@ import { routeHref } from '../route.js';
 /** One real anagram family, shown as moving tiles. */
 const DEMO_WORDS = ['LISTEN', 'SILENT', 'TINSEL', 'ENLIST', 'INLETS'];
 const DEMO_ORDERS = [3, 4, 5];
-const AUTO_SHUFFLE_MS = 2600;
+const FIRST_SHUFFLE_MS = 900;
 
 function anagramPreview(onDispose) {
   const tiles = shufflingTiles(DEMO_WORDS[0]);
@@ -21,11 +21,15 @@ function anagramPreview(onDispose) {
     tiles.setWord(DEMO_WORDS[index]);
     setChildren(caption, 'listen', h('span', { class: 'preview__arrow', 'aria-hidden': 'true' }, '→'), h('strong', {}, DEMO_WORDS[index].toLowerCase()));
   }
-  show(1);
+  show(0);
 
+  // One automatic move shows that the tiles rearrange. After that the visitor
+  // is in control, so nothing on the page keeps moving by itself.
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    timer = setInterval(() => show(index + 1), AUTO_SHUFFLE_MS);
-    onDispose(() => clearInterval(timer));
+    timer = setTimeout(() => show(1), FIRST_SHUFFLE_MS);
+    onDispose(() => clearTimeout(timer));
+  } else {
+    show(1);
   }
 
   const input = h('input', {
@@ -59,7 +63,7 @@ function anagramPreview(onDispose) {
       caption,
       h('button', {
         class: 'button button--quiet', type: 'button',
-        onClick: () => { clearInterval(timer); show(index + 1); },
+        onClick: () => { clearTimeout(timer); show(index + 1); },
       }, icon('reset', 15), 'Rearrange'),
     ),
     h('p', { class: 'preview__text' }, 'Every result is a real word from a 172,000-word dictionary, with the most common words first.'),

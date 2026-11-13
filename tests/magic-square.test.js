@@ -169,3 +169,33 @@ test('construction steps reject orders with no square', () => {
     assert.throws(() => buildConstructionSteps(bad), RangeError);
   }
 });
+
+test('order 6 matches the published Strachey square', () => {
+  assert.deepEqual(generateMagicSquare(6), [
+    [35, 1, 6, 26, 19, 24],
+    [3, 32, 7, 21, 23, 25],
+    [31, 9, 2, 22, 27, 20],
+    [8, 28, 33, 17, 10, 15],
+    [30, 5, 34, 12, 14, 16],
+    [4, 36, 29, 13, 18, 11],
+  ]);
+});
+
+test('every singly even order (6, 10, 14, ... 98) is a normal magic square', () => {
+  const orders = [];
+  for (let order = 6; order <= MAX_ORDER; order += 4) orders.push(order);
+  assert.equal(orders.length, 24);
+  for (const order of orders) {
+    assert.equal(classifyOrder(order), 'singly-even');
+    assertIsNormalMagicSquare(generateMagicSquare(order), order);
+  }
+});
+
+test('order 4 matches the classic diagonal-complement square', () => {
+  assert.deepEqual(generateMagicSquare(4), [
+    [16, 2, 3, 13],
+    [5, 11, 10, 8],
+    [9, 7, 6, 12],
+    [4, 14, 15, 1],
+  ]);
+});
