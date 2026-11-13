@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#17171c"/></marker></defs>
+  <rect width="760" height="470" fill="#ffffff"/>
+  <text x="24" y="30" font-size="16" font-weight="600" fill="#17171c">Sequence: solving an anagram</text>
+  <g fill="#f4f4f6" stroke="#cfcfd6">
+    <rect x="30" y="50" width="100" height="34" rx="6"/><rect x="190" y="50" width="130" height="34" rx="6"/>
+    <rect x="380" y="50" width="130" height="34" rx="6"/><rect x="570" y="50" width="160" height="34" rx="6"/>
+  </g>
+  <g fill="#17171c" text-anchor="middle" font-weight="600">
+    <text x="80" y="72">User</text><text x="255" y="72">Anagram view</text>
+    <text x="445" y="72">lib/anagram.js</text><text x="650" y="72">services/dictionary.js</text>
+  </g>
+  <g stroke="#cfcfd6" stroke-dasharray="4 4">
+    <path d="M80 84v366M255 84v366M445 84v366M650 84v366"/>
+  </g>
+  <g stroke="#17171c" stroke-width="1.5" fill="none" marker-end="url(#b)">
+    <path d="M80 118h173"/>
+    <path d="M255 158h188"/>
+    <path d="M445 198h-188" stroke-dasharray="5 4"/>
+    <path d="M255 238h393"/>
+    <path d="M650 290h-393" stroke-dasharray="5 4"/>
+    <path d="M255 330h188"/>
+    <path d="M445 382h-188" stroke-dasharray="5 4"/>
+    <path d="M255 422h-173" stroke-dasharray="5 4"/>
+  </g>
+  <g fill="#17171c">
+    <text x="90" y="110">types "Dirty Room", presses Enter</text>
+    <text x="265" y="150">parseAnagramInput(raw)</text>
+    <text x="265" y="190" fill="#5d5d6b">letters "dirtyroom", or an error message</text>
+    <text x="265" y="230">loadDictionary()</text>
+    <text x="462" y="262" fill="#5d5d6b">first call: fetch words.txt,</text>
+    <text x="462" y="278" fill="#5d5d6b">bucket by length; then cached</text>
+    <text x="265" y="322">solveAnagram(dictionary, letters, options)</text>
+    <text x="462" y="354" fill="#5d5d6b">letter-count check per candidate word</text>
+    <text x="265" y="374" fill="#5d5d6b">words, two-word pairs, flags</text>
+    <text x="90" y="414" fill="#5d5d6b">grouped, sortable results</text>
+  </g>
+</svg>

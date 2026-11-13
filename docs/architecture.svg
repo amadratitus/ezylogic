@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#5d5d6b"/></marker></defs>
+  <rect width="760" height="430" fill="#ffffff"/>
+  <text x="24" y="30" font-size="16" font-weight="600" fill="#17171c">Architecture: layers and dependencies</text>
+  <text x="24" y="50" fill="#5d5d6b">Arrows point from a module to what it imports. Logic never imports UI.</text>
+
+  <g fill="#f4f4f6" stroke="#cfcfd6">
+    <rect x="24" y="72" width="712" height="62" rx="8"/>
+    <rect x="24" y="156" width="712" height="92" rx="8"/>
+    <rect x="24" y="270" width="340" height="62" rx="8"/>
+    <rect x="396" y="270" width="340" height="62" rx="8" fill="#eeeefc" stroke="#5151cd"/>
+    <rect x="24" y="354" width="340" height="52" rx="8" fill="#ffffff"/>
+    <rect x="396" y="354" width="340" height="52" rx="8" fill="#e6f5ec" stroke="#17794a"/>
+  </g>
+  <g fill="#17171c">
+    <text x="40" y="96" font-weight="600">App shell</text>
+    <text x="40" y="118" fill="#5d5d6b">index.html + src/main.js: hash router, navigation state, theme</text>
+
+    <text x="40" y="180" font-weight="600">Views (src/ui/views)</text>
+    <text x="40" y="238" fill="#5d5d6b">Shared UI: dom.js (element builder), icons.js, toast.js</text>
+
+    <text x="40" y="294" font-weight="600">Services (src/services)</text>
+    <text x="40" y="316" fill="#5d5d6b">dictionary.js, storage.js, clipboard.js</text>
+
+    <text x="412" y="294" font-weight="600">Pure logic (src/lib)</text>
+    <text x="412" y="316" fill="#5d5d6b">anagram.js, magic-square.js (no DOM, no network)</text>
+
+    <text x="40" y="376" font-weight="600">Data</text>
+    <text x="40" y="396" fill="#5d5d6b">data/words.txt (ENABLE, 172,823 words)</text>
+
+    <text x="412" y="376" font-weight="600">Tests (node --test)</text>
+    <text x="412" y="396" fill="#5d5d6b">tests/*.test.js import src/lib directly</text>
+  </g>
+  <g fill="#ffffff" stroke="#cfcfd6">
+    <rect x="40" y="190" width="120" height="30" rx="6"/><rect x="172" y="190" width="150" height="30" rx="6"/>
+    <rect x="334" y="190" width="170" height="30" rx="6"/><rect x="516" y="190" width="100" height="30" rx="6"/>
+  </g>
+  <g fill="#17171c" text-anchor="middle">
+    <text x="100" y="210">home.js</text><text x="247" y="210">anagram.js</text>
+    <text x="419" y="210">magic-square.js</text><text x="566" y="210">about.js</text>
+  </g>
+  <g stroke="#5d5d6b" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M380 134v20"/>
+    <path d="M194 248v20"/>
+    <path d="M566 248v20"/>
+    <path d="M364 301h30"/>
+    <path d="M194 332v20"/>
+    <path d="M566 354v-20"/>
+  </g>
+</svg>

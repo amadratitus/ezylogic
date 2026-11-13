@@ -1,0 +1,15 @@
+{
+  "name": "anagram-magic",
+  "version": "2.0.0",
+  "description": "Anagram solver and magic square generator. Static, dependency-free web app.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test"
+  }
+}
