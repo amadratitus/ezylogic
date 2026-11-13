@@ -74,29 +74,71 @@ export function parseWordList(text) {
     .filter((word) => /^[a-z]+$/.test(word));
 }
 
+/** Tier used when no commonness data is available. */
+const UNKNOWN_TIER = 5;
+/** Tier of words missing from the commonness data: valid, but rare. */
+export const RARE_TIER = 9;
+
 /**
  * Build the search structure: words bucketed by length, so a search only
  * visits words that could possibly fit.
- * @param {Iterable<string>} words
+ *
+ * `tiers` is optional commonness data: a string with one digit per entry of
+ * `words`, in the same order. 1 is most common, 9 is rare. It only affects
+ * the order results are shown in, never which words are found.
+ *
+ * @param {string[]} words
+ * @param {string | null} [tiers]
  */
-export function createDictionary(words) {
-  const unique = new Set();
-  for (const word of words) {
+export function createDictionary(words, tiers = null) {
+  const list = Array.from(words);
+  const hasTiers = typeof tiers === 'string' && tiers.length === list.length && /^[1-9]*$/.test(tiers);
+  const tierOf = new Map();
+  list.forEach((word, index) => {
     const clean = String(word).toLowerCase();
-    if (/^[a-z]+$/.test(clean)) unique.add(clean);
-  }
+    if (!/^[a-z]+$/.test(clean) || tierOf.has(clean)) return;
+    tierOf.set(clean, hasTiers ? Number(tiers[index]) : UNKNOWN_TIER);
+  });
   const byLength = new Map();
-  for (const word of unique) {
+  for (const word of tierOf.keys()) {
     const bucket = byLength.get(word.length);
     if (bucket) bucket.push(word);
     else byLength.set(word.length, [word]);
   }
   for (const bucket of byLength.values()) bucket.sort();
-  return { size: unique.size, byLength, wordSet: unique };
+  return { size: tierOf.size, byLength, tierOf, hasTiers };
 }
 
 export function hasWord(dictionary, word) {
-  return dictionary.wordSet.has(word);
+  return dictionary.tierOf.has(word);
+}
+
+/** Commonness tier of a dictionary word: 1 (most common) to 9 (rare). */
+export function wordTier(dictionary, word) {
+  return dictionary.tierOf.get(word) ?? RARE_TIER;
+}
+
+/**
+ * Coarse commonness class used by the UI.
+ * @returns {'common' | 'familiar' | 'rare'}
+ */
+export function wordQuality(dictionary, word) {
+  const tier = wordTier(dictionary, word);
+  if (tier <= 3) return 'common';
+  return tier < RARE_TIER ? 'familiar' : 'rare';
+}
+
+const QUALITY_ORDER = { common: 0, familiar: 1, rare: 2 };
+const compareText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Order words best first: longest, then most common, then alphabetical.
+ * Returns a new array.
+ */
+export function rankWords(dictionary, words) {
+  return [...words].sort(
+    (a, b) => b.length - a.length || wordTier(dictionary, a) - wordTier(dictionary, b) || compareText(a, b),
+  );
 }
 
 /** Can `word` be spelled using the available letters, each at most as often as supplied? */
@@ -145,9 +187,16 @@ function signatureFromCounts(counts) {
   return result;
 }
 
+/** Safety bound on pairs held in memory before ranking. */
+const MAX_COLLECTED_PAIRS = 100000;
+
 /**
  * Find pairs of dictionary words that together use every letter exactly once.
- * Each pair is returned once, as [shorter-or-earlier word, other word].
+ * Each pair is returned once, as [longer word, other word].
+ *
+ * Every pair found is a correct anagram. Ranking only decides the order:
+ * pairs of common words first, then pairs with smaller total tier, then
+ * evenly sized pairs. The ranking is applied before `limit` truncates.
  *
  * @returns {{phrases: [string, string][], total: number, truncated: boolean}}
  */
@@ -174,7 +223,7 @@ export function findTwoWordAnagrams(dictionary, letters, options = {}) {
 
   const available = letterCounts(letters);
   const remaining = new Uint8Array(ALPHABET_SIZE);
-  const phrases = [];
+  const pairs = [];
   let count = 0;
   for (const first of candidates) {
     if (first.length * 2 > total) continue;
@@ -186,10 +235,21 @@ export function findTwoWordAnagrams(dictionary, letters, options = {}) {
       // When both words have the same length each pair would be seen twice.
       if (first.length === second.length && first > second) continue;
       count++;
-      if (phrases.length < limit) phrases.push([first, second]);
+      if (pairs.length < MAX_COLLECTED_PAIRS) {
+        pairs.push(first.length === second.length ? [first, second] : [second, first]);
+      }
     }
   }
-  phrases.sort((a, b) => a.join(' ').localeCompare(b.join(' ')));
+
+  const scored = pairs.map((pair) => {
+    const tiers = [wordTier(dictionary, pair[0]), wordTier(dictionary, pair[1])];
+    const worst = QUALITY_ORDER[wordQuality(dictionary, tiers[0] >= tiers[1] ? pair[0] : pair[1])];
+    return { pair, worst, sum: tiers[0] + tiers[1], spread: pair[0].length - pair[1].length, text: pair.join(' ') };
+  });
+  scored.sort(
+    (a, b) => a.worst - b.worst || a.sum - b.sum || a.spread - b.spread || compareText(a.text, b.text),
+  );
+  const phrases = scored.slice(0, limit).map((entry) => entry.pair);
   return { phrases, total: count, truncated: count > phrases.length };
 }
 
@@ -204,14 +264,18 @@ export function sortWords(words, mode = 'length') {
 }
 
 /**
- * Full solve used by the UI.
+ * Full solve used by the UI. `words` is ranked best first and never
+ * contains the input itself.
  * @returns {{
  *   letters: string, words: string[], inputIsWord: boolean,
  *   phrases: [string, string][], phraseTotal: number, phrasesTruncated: boolean
  * }}
  */
 export function solveAnagram(dictionary, letters, options = {}) {
-  const words = findWords(dictionary, letters, options).filter((word) => word !== letters);
+  const words = rankWords(
+    dictionary,
+    findWords(dictionary, letters, options).filter((word) => word !== letters),
+  );
   const pairs = options.includePhrases
     ? findTwoWordAnagrams(dictionary, letters, { limit: options.phraseLimit })
     : { phrases: [], total: 0, truncated: false };

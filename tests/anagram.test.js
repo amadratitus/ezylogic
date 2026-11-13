@@ -13,13 +13,17 @@ import {
   normalizeLetters,
   parseAnagramInput,
   parseWordList,
+  rankWords,
+  wordQuality,
+  wordTier,
   signature,
   solveAnagram,
   sortWords,
 } from '../src/lib/anagram.js';
 
 const wordListText = readFileSync(new URL('../data/words.txt', import.meta.url), 'utf8');
-const dictionary = createDictionary(parseWordList(wordListText));
+const tierText = readFileSync(new URL('../data/word-tiers.txt', import.meta.url), 'utf8').trim();
+const dictionary = createDictionary(parseWordList(wordListText), tierText);
 
 const small = createDictionary([
   'listen', 'silent', 'enlist', 'tinsel', 'inlets', 'list', 'tin', 'net', 'ten',
@@ -93,7 +97,9 @@ test('repeated letters are respected', () => {
 
 test('real dictionary: listen', () => {
   const result = solveAnagram(dictionary, 'listen', { minLength: 6 });
-  assert.deepEqual(result.words, ['elints', 'enlist', 'inlets', 'silent', 'tinsel']);
+  assert.deepEqual([...result.words].sort(), ['elints', 'enlist', 'inlets', 'silent', 'tinsel']);
+  assert.equal(result.words[0], 'silent', 'most common anagram first');
+  assert.equal(result.words.at(-1), 'elints', 'rare word last');
   assert.equal(result.inputIsWord, true);
   assert.ok(!result.words.includes('listen'), 'the input itself is not listed');
 });
@@ -126,12 +132,12 @@ test('real dictionary: input with no full anagram returns none', () => {
 
 test('two-word anagrams use every letter exactly once', () => {
   const { phrases, total, truncated } = findTwoWordAnagrams(small, 'dirtyroom');
-  assert.deepEqual(phrases, [['room', 'dirty']]);
+  assert.deepEqual(phrases, [['dirty', 'room']]);
   assert.equal(total, 1);
   assert.equal(truncated, false);
 
   const real = findTwoWordAnagrams(dictionary, 'dormitory', { limit: 10000 });
-  assert.ok(real.phrases.some(([a, b]) => a === 'room' && b === 'dirty'));
+  assert.ok(real.phrases.some(([a, b]) => a === 'dirty' && b === 'room'));
   const seen = new Set();
   for (const [first, second] of real.phrases) {
     assert.ok(hasWord(dictionary, first) && hasWord(dictionary, second));
@@ -150,6 +156,37 @@ test('two-word anagrams respect the limit and report truncation', () => {
   assert.equal(capped.total, full.total);
   assert.equal(capped.truncated, true);
   assert.deepEqual(findTwoWordAnagrams(dictionary, 'abc').phrases, []);
+});
+
+test('ranking never changes which pairs are found, only their order', () => {
+  const ranked = findTwoWordAnagrams(dictionary, 'astronomer', { limit: 100000 });
+  const unranked = findTwoWordAnagrams(createDictionary(parseWordList(wordListText)), 'astronomer', { limit: 100000 });
+  const normalize = (result) => result.phrases.map((pair) => [...pair].sort().join(' ')).sort();
+  assert.equal(ranked.total, unranked.total);
+  assert.deepEqual(normalize(ranked), normalize(unranked));
+  // Readable pairs of common words come first; pairs with rare words last.
+  assert.deepEqual(findTwoWordAnagrams(dictionary, 'dormitory').phrases[0], ['dirty', 'room']);
+  assert.deepEqual(findTwoWordAnagrams(dictionary, 'conversation').phrases[0], ['covers', 'nation']);
+  const qualityOfPair = ([a, b]) => Math.max(...[a, b].map((word) => ['common', 'familiar', 'rare'].indexOf(wordQuality(dictionary, word))));
+  const qualities = ranked.phrases.map(qualityOfPair);
+  assert.deepEqual(qualities, [...qualities].sort((a, b) => a - b));
+});
+
+test('commonness tiers load and classify words', () => {
+  assert.equal(dictionary.hasTiers, true);
+  assert.equal(tierText.length, dictionary.size);
+  assert.equal(wordQuality(dictionary, 'listen'), 'common');
+  assert.equal(wordQuality(dictionary, 'starer'), 'familiar');
+  assert.equal(wordQuality(dictionary, 'elints'), 'rare');
+  assert.ok(wordTier(dictionary, 'the') < wordTier(dictionary, 'tinsel'));
+  assert.deepEqual(rankWords(dictionary, ['elints', 'tin', 'tinsel', 'silent', 'net']), ['silent', 'tinsel', 'elints', 'net', 'tin']);
+});
+
+test('tiers are ignored when they do not line up with the word list', () => {
+  const dict = createDictionary(['tea', 'eat'], '1');
+  assert.equal(dict.hasTiers, false);
+  assert.equal(wordQuality(dict, 'tea'), 'familiar');
+  assert.deepEqual(rankWords(dict, ['tea', 'eat']), ['eat', 'tea']);
 });
 
 test('sortWords orders by length, A–Z and Z–A without mutating', () => {

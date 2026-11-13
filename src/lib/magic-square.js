@@ -171,6 +171,145 @@ export function generateMagicSquare(order) {
   return square;
 }
 
+/** Largest order the step-by-step construction is offered for. */
+export const MAX_STEP_ORDER = 12;
+
+/**
+ * Describe how the square of a given order is constructed, as a list of
+ * steps. Each step lists the cells it writes; replaying every step in order
+ * on an empty grid yields exactly the square from generateMagicSquare.
+ *
+ * @param {number} order
+ * @returns {{caption: string, kind: 'place' | 'swap', cells: {row: number, column: number, value: number}[]}[]}
+ */
+export function buildConstructionSteps(order) {
+  const kind = classifyOrder(order);
+  if (!Number.isInteger(order) || order < MIN_ORDER || order > MAX_ORDER || kind === 'impossible') {
+    throw new RangeError('No construction exists for this order.');
+  }
+  if (kind === 'trivial') {
+    return [{ caption: 'A 1×1 square holds only the number 1.', kind: 'place', cells: [{ row: 0, column: 0, value: 1 }] }];
+  }
+  if (kind === 'odd') return oddSteps(order);
+  if (kind === 'doubly-even') return doublyEvenSteps(order);
+  return singlyEvenSteps(order);
+}
+
+function oddSteps(order) {
+  const taken = emptySquare(order);
+  const steps = [];
+  let row = 0;
+  let column = (order - 1) / 2;
+  let caption = 'Start with 1 in the middle of the top row.';
+  for (let value = 1; value <= order * order; value++) {
+    taken[row][column] = value;
+    steps.push({ caption, kind: 'place', cells: [{ row, column, value }] });
+    const nextRow = (row - 1 + order) % order;
+    const nextColumn = (column + 1) % order;
+    const next = value + 1;
+    if (taken[nextRow][nextColumn] !== 0) {
+      row = (row + 1) % order;
+      caption = `Place ${next}: the cell up and to the right is taken, so step down one cell instead.`;
+    } else {
+      const wrapsTop = row === 0;
+      const wrapsSide = column === order - 1;
+      row = nextRow;
+      column = nextColumn;
+      if (wrapsTop && wrapsSide) caption = `Place ${next}: move up and right, wrapping around both edges.`;
+      else if (wrapsTop) caption = `Place ${next}: move up and right. Off the top, so wrap to the bottom row.`;
+      else if (wrapsSide) caption = `Place ${next}: move up and right. Off the side, so wrap to the first column.`;
+      else caption = `Place ${next}: move up and right.`;
+    }
+  }
+  return steps;
+}
+
+function doublyEvenSteps(order) {
+  const steps = [];
+  const complementBase = order * order + 1;
+  for (let row = 0; row < order; row++) {
+    const cells = [];
+    for (let column = 0; column < order; column++) cells.push({ row, column, value: row * order + column + 1 });
+    steps.push({
+      caption: row === 0 ? `Write the numbers 1 to ${order * order} in order, row by row.` : `Row ${row + 1}: keep counting.`,
+      kind: 'place',
+      cells,
+    });
+  }
+  for (let row = 0; row < order; row++) {
+    const cells = [];
+    for (let column = 0; column < order; column++) {
+      if (row % 4 === column % 4 || (row % 4) + (column % 4) === 3) {
+        cells.push({ row, column, value: complementBase - (row * order + column + 1) });
+      }
+    }
+    steps.push({
+      caption: `Row ${row + 1}: on the diagonals of each 4×4 block, replace each number v with ${complementBase} − v.`,
+      kind: 'swap',
+      cells,
+    });
+  }
+  return steps;
+}
+
+function singlyEvenSteps(order) {
+  const half = order / 2;
+  const quarterCells = half * half;
+  const base = buildOdd(half);
+  const grid = emptySquare(order);
+  const steps = [];
+  const quadrants = [
+    { name: 'top-left', rowOffset: 0, columnOffset: 0, add: 0 },
+    { name: 'bottom-right', rowOffset: half, columnOffset: half, add: quarterCells },
+    { name: 'top-right', rowOffset: 0, columnOffset: half, add: 2 * quarterCells },
+    { name: 'bottom-left', rowOffset: half, columnOffset: 0, add: 3 * quarterCells },
+  ];
+  for (const quadrant of quadrants) {
+    const cells = [];
+    for (let row = 0; row < half; row++) {
+      for (let column = 0; column < half; column++) {
+        const value = base[row][column] + quadrant.add;
+        grid[row + quadrant.rowOffset][column + quadrant.columnOffset] = value;
+        cells.push({ row: row + quadrant.rowOffset, column: column + quadrant.columnOffset, value });
+      }
+    }
+    steps.push({
+      caption: `Fill the ${quadrant.name} quarter with a ${half}×${half} Siamese square using ${quadrant.add + 1} to ${quadrant.add + quarterCells}.`,
+      kind: 'place',
+      cells,
+    });
+  }
+
+  const k = (order - 2) / 4;
+  const middleRow = (half - 1) / 2;
+  const swapCells = (columnsForRow) => {
+    const cells = [];
+    for (let row = 0; row < half; row++) {
+      for (const column of columnsForRow(row)) {
+        const upper = grid[row][column];
+        grid[row][column] = grid[row + half][column];
+        grid[row + half][column] = upper;
+        cells.push({ row, column, value: grid[row][column] }, { row: row + half, column, value: grid[row + half][column] });
+      }
+    }
+    return cells;
+  };
+  const range = (start, count) => Array.from({ length: count }, (_, index) => start + index);
+  steps.push({
+    caption: `Swap the leftmost ${k === 1 ? 'column' : `${k} columns`} between the top and bottom halves. On the middle row of each half, shift the swap one cell to the right.`,
+    kind: 'swap',
+    cells: swapCells((row) => range(row === middleRow ? 1 : 0, k)),
+  });
+  if (k > 1) {
+    steps.push({
+      caption: `Swap the rightmost ${k - 1 === 1 ? 'column' : `${k - 1} columns`} between the top and bottom halves.`,
+      kind: 'swap',
+      cells: swapCells(() => range(order - k + 1, k - 1)),
+    });
+  }
+  return steps;
+}
+
 /**
  * Independently check that a grid is a normal magic square.
  * @param {number[][]} square
