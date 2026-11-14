@@ -22,3 +22,15 @@ export async function copyWithToast(text, successMessage) {
   showToast(copied ? successMessage : 'Could not copy. Select the text and copy it manually.', copied ? 'success' : 'error');
   return copied;
 }
+
+/**
+ * Tell screen reader users about a change that is only visible on screen,
+ * such as new results appearing. Nothing is shown visually.
+ */
+export function announce(message) {
+  const region = document.getElementById('announcer');
+  if (!region) return;
+  // Clear first so repeating the same message is announced again.
+  region.textContent = '';
+  setTimeout(() => { region.textContent = message; }, 50);
+}

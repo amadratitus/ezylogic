@@ -84,8 +84,11 @@ export const RARE_TIER = 9;
  * visits words that could possibly fit.
  *
  * `tiers` is optional commonness data: a string with one digit per entry of
- * `words`, in the same order. 1 is most common, 9 is rare. It only affects
- * the order results are shown in, never which words are found.
+ * `words`, in the same order. 1 is most common, 9 is rare. The digits are
+ * SCOWL size levels: an editorial estimate of how widely a word is known,
+ * based mostly on how many dictionaries list it. They are not measured
+ * usage frequencies. Tiers only affect the order results are shown in and
+ * which pairs count as readable, never which words are found.
  *
  * @param {string[]} words
  * @param {string | null} [tiers]
@@ -187,6 +190,26 @@ function signatureFromCounts(counts) {
   return result;
 }
 
+/** Words this short must be common to count as readable in a pair. */
+const SHORT_WORD_LENGTH = 3;
+const COMMON_TIER_LIMIT = 3;
+
+/**
+ * Is this pair likely to read as a meaningful phrase?
+ * - no two-letter words ("ti", "es")
+ * - three-letter words must be common ("set" yes, "els" no)
+ * - no rare words at all
+ * Without commonness data only the two-letter rule can be applied.
+ */
+export function isReadablePair(dictionary, pair) {
+  return pair.every((word) => {
+    if (word.length < SHORT_WORD_LENGTH) return false;
+    if (!dictionary.hasTiers) return true;
+    const tier = wordTier(dictionary, word);
+    return word.length <= SHORT_WORD_LENGTH ? tier <= COMMON_TIER_LIMIT : tier < RARE_TIER;
+  });
+}
+
 /** Safety bound on pairs held in memory before ranking. */
 const MAX_COLLECTED_PAIRS = 100000;
 
@@ -195,16 +218,18 @@ const MAX_COLLECTED_PAIRS = 100000;
  * Each pair is returned once, as [longer word, other word].
  *
  * Every pair found is a correct anagram. Ranking only decides the order:
- * pairs of common words first, then pairs with smaller total tier, then
- * evenly sized pairs. The ranking is applied before `limit` truncates.
+ * readable pairs first (see isReadablePair), then pairs of common words,
+ * then pairs with smaller total tier, then evenly sized pairs. The ranking
+ * is applied before `limit` truncates, so the first `readableTotal` entries
+ * of `phrases` are the readable ones (as far as the limit allows).
  *
- * @returns {{phrases: [string, string][], total: number, truncated: boolean}}
+ * @returns {{phrases: [string, string][], total: number, readableTotal: number, truncated: boolean}}
  */
 export function findTwoWordAnagrams(dictionary, letters, options = {}) {
   const limit = options.limit ?? DEFAULT_PHRASE_LIMIT;
   const minWordLength = Math.max(1, options.minWordLength ?? 2);
   const total = letters.length;
-  const empty = { phrases: [], total: 0, truncated: false };
+  const empty = { phrases: [], total: 0, readableTotal: 0, truncated: false };
   if (total < minWordLength * 2) return empty;
 
   // Both halves must themselves be spellable from the input, so only those
@@ -244,16 +269,23 @@ export function findTwoWordAnagrams(dictionary, letters, options = {}) {
   const scored = pairs.map((pair) => {
     const tiers = [wordTier(dictionary, pair[0]), wordTier(dictionary, pair[1])];
     const worst = QUALITY_ORDER[wordQuality(dictionary, tiers[0] >= tiers[1] ? pair[0] : pair[1])];
-    return { pair, worst, sum: tiers[0] + tiers[1], spread: pair[0].length - pair[1].length, text: pair.join(' ') };
+    return {
+      pair,
+      readable: isReadablePair(dictionary, pair) ? 0 : 1,
+      worst,
+      sum: tiers[0] + tiers[1],
+      spread: pair[0].length - pair[1].length,
+      text: pair.join(' '),
+    };
   });
   scored.sort(
-    (a, b) => a.worst - b.worst || a.sum - b.sum || a.spread - b.spread || compareText(a.text, b.text),
+    (a, b) =>
+      a.readable - b.readable || a.worst - b.worst || a.sum - b.sum || a.spread - b.spread || compareText(a.text, b.text),
   );
   const phrases = scored.slice(0, limit).map((entry) => entry.pair);
-  return { phrases, total: count, truncated: count > phrases.length };
+  const readableTotal = scored.filter((entry) => entry.readable === 0).length;
+  return { phrases, total: count, readableTotal, truncated: count > phrases.length };
 }
-
-export const SORT_MODES = /** @type {const} */ (['length', 'az', 'za']);
 
 /** Return a sorted copy of `words`. Unknown modes fall back to 'length'. */
 export function sortWords(words, mode = 'length') {
@@ -268,7 +300,8 @@ export function sortWords(words, mode = 'length') {
  * contains the input itself.
  * @returns {{
  *   letters: string, words: string[], inputIsWord: boolean,
- *   phrases: [string, string][], phraseTotal: number, phrasesTruncated: boolean
+ *   phrases: [string, string][], phraseTotal: number, readablePhraseTotal: number,
+ *   phrasesTruncated: boolean
  * }}
  */
 export function solveAnagram(dictionary, letters, options = {}) {
@@ -278,13 +311,14 @@ export function solveAnagram(dictionary, letters, options = {}) {
   );
   const pairs = options.includePhrases
     ? findTwoWordAnagrams(dictionary, letters, { limit: options.phraseLimit })
-    : { phrases: [], total: 0, truncated: false };
+    : { phrases: [], total: 0, readableTotal: 0, truncated: false };
   return {
     letters,
     words,
     inputIsWord: hasWord(dictionary, letters),
     phrases: pairs.phrases,
     phraseTotal: pairs.total,
+    readablePhraseTotal: pairs.readableTotal,
     phrasesTruncated: pairs.truncated,
   };
 }

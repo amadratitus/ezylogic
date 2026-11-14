@@ -8,6 +8,7 @@ import {
   findTwoWordAnagrams,
   findWords,
   hasWord,
+  isReadablePair,
   isAnagram,
   letterCounts,
   normalizeLetters,
@@ -170,6 +171,33 @@ test('ranking never changes which pairs are found, only their order', () => {
   const qualityOfPair = ([a, b]) => Math.max(...[a, b].map((word) => ['common', 'familiar', 'rare'].indexOf(wordQuality(dictionary, word))));
   const qualities = ranked.phrases.map(qualityOfPair);
   assert.deepEqual(qualities, [...qualities].sort((a, b) => a - b));
+});
+
+test('readable pairs exclude two-letter, rare and obscure three-letter words', () => {
+  assert.equal(isReadablePair(dictionary, ['dirty', 'room']), true);
+  assert.equal(isReadablePair(dictionary, ['let', 'sin']), true);
+  assert.equal(isReadablePair(dictionary, ['lets', 'in']), false, 'two-letter word');
+  assert.equal(isReadablePair(dictionary, ['lens', 'ti']), false, 'two-letter word');
+  assert.equal(isReadablePair(dictionary, ['monteros', 'ar']), false);
+  assert.equal(isReadablePair(dictionary, ['lines', 'els']), false, 'rare three-letter word');
+
+  for (const letters of ['listen', 'earth', 'astronomer', 'conversation']) {
+    const result = findTwoWordAnagrams(dictionary, letters, { limit: 100000 });
+    const flags = result.phrases.map((pair) => isReadablePair(dictionary, pair));
+    assert.equal(flags.filter(Boolean).length, result.readableTotal);
+    assert.equal(flags.lastIndexOf(true), result.readableTotal - 1, `${letters}: readable pairs come first`);
+    assert.ok(result.readableTotal <= result.total);
+  }
+  // "earth" only splits into pairs with a two-letter word: valid, but none readable.
+  const earth = findTwoWordAnagrams(dictionary, 'earth');
+  assert.equal(earth.readableTotal, 0);
+  assert.ok(earth.total > 0);
+  assert.deepEqual(findTwoWordAnagrams(dictionary, 'listen').phrases[0], ['let', 'sin']);
+
+  // Without tier data only the two-letter rule applies.
+  const plain = createDictionary(['els', 'lines', 'in', 'lets']);
+  assert.equal(isReadablePair(plain, ['lines', 'els']), true);
+  assert.equal(isReadablePair(plain, ['lets', 'in']), false);
 });
 
 test('commonness tiers load and classify words', () => {

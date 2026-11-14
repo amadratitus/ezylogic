@@ -2,7 +2,6 @@
 // The markup below is static and trusted; no user input reaches it.
 
 const PATHS = {
-  letters: '<path d="M3 17 7.5 6 12 17M4.6 13h5.8"/><path d="M15 7h6M15 12h6M15 17h6"/>',
   grid: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>',
   arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
@@ -15,7 +14,6 @@ const PATHS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   reset: '<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4.5V9h4.5"/>',
   alert: '<path d="M12 4 2.8 19.5h18.4L12 4Z"/><path d="M12 10v4.5M12 17v.2"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5v.2"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   chevronDown: '<path d="m6 9 6 6 6-6"/>',
   play: '<path d="M8 5.5v13l10.5-6.5L8 5.5Z" fill="currentColor"/>',
@@ -24,7 +22,6 @@ const PATHS = {
   stepForward: '<path d="M8.5 6 15 12l-6.5 6"/>',
   restart: '<path d="M6 5v14"/><path d="M19 6 10 12l9 6V6Z" fill="currentColor"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/>',
-  sigma: '<path d="M18 6V4H6l7 8-7 8h12v-2"/>',
 };
 
 /**

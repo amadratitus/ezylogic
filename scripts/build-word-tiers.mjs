@@ -1,4 +1,8 @@
-// Rebuilds data/word-tiers.txt from SCOWL frequency lists.
+// Rebuilds data/word-tiers.txt from SCOWL size levels.
+//
+// SCOWL levels are spelling-list inclusion levels (how widely a word is
+// known, judged mostly by how many dictionaries list it). They are not
+// measured word frequencies. See data/README.md.
 //
 // Usage: node scripts/build-word-tiers.mjs <dir containing english-words-10.json etc.>
 // The JSON files come from the `wordlist-english` npm package (SCOWL data).

@@ -7,6 +7,8 @@ Two small tools in one web app:
 
 It is a static site with no runtime dependencies and no build step. Everything runs in the browser.
 
+![Anagram Magic home page](docs/screenshots/after-home.png)
+
 ## Run it
 
 Requires Node.js 18 or later (only for the local server and the tests).
@@ -49,7 +51,7 @@ src/ui/                 DOM helpers, icons, routing helpers, toast
 tests/                  node:test suites for src/lib
 scripts/serve.mjs       Dependency-free static dev server
 scripts/build-word-tiers.mjs  Regenerates data/word-tiers.txt from SCOWL
-docs/                   Diagrams
+docs/                   Diagrams and screenshots
 ```
 
 ![Architecture](docs/architecture.svg)
@@ -62,7 +64,11 @@ Input is reduced to the letters a–z (case, spaces, digits and punctuation are 
 
 Two-word anagrams: every word that fits the input is indexed by its sorted letters. For each candidate, the leftover letters are looked up in that index. Each pair is reported once.
 
-**Ranking never changes what is found, only the order.** Each word has a commonness tier (1 = most common, 9 = rare). Words are ordered longest first, then most common. Pairs are ordered by their rarer word, then by total tier, then by how evenly the letters are split. The page shows full anagrams first, then the best pairs, and keeps shorter words in collapsed groups with rare words tucked behind a toggle.
+**Ranking never changes what is found, only the order.** Each word has a tier from 1 (widely known) to 9 (rare). Words are ordered longest first, then by tier. The page shows full anagrams first, then two-word pairs, and keeps shorter words in collapsed groups with rare words behind a toggle.
+
+**Readable pairs.** By default the page lists only pairs with no two-letter words, no rare words, and only widely known three-letter words. All other valid pairs are still found and counted, and appear when the visitor asks for them (a link under the list, or a filter).
+
+**The tiers are an estimate, not frequency data.** They are SCOWL size levels: spelling lists graded mostly by how many dictionaries include a word. See `data/README.md`.
 
 A 30-letter input with two-word search finishes in well under a second.
 
@@ -89,8 +95,10 @@ All methods run in O(n²). Every generated square is passed through `verifyMagic
 | Asset | Source | Licence |
 | --- | --- | --- |
 | `data/words.txt` | ENABLE (Enhanced North American Benchmark Lexicon), 172,823 words, by Alan Beale and M. Cooper | Public domain |
-| `data/word-tiers.txt` | Derived from SCOWL by Kevin Atkinson, via the `wordlist-english` npm package | Free to use with the notice in `data/SCOWL-COPYRIGHT.txt` |
+| `data/word-tiers.txt` | Derived from SCOWL size levels (Kevin Atkinson), via the `wordlist-english` 1.2.1 npm package | Permissive; requires the notice in `data/SCOWL-COPYRIGHT.txt` |
 | `assets/fonts/` | Fraunces, DM Sans, JetBrains Mono (Latin subsets from Fontsource) | SIL Open Font License 1.1, copies alongside the fonts |
+
+Full provenance, checksums and the distinction between spelling-list levels and real frequency data are in `data/README.md`.
 
 `word-tiers.txt` holds one digit per line of `words.txt`, in the same order, so the two files must be regenerated together:
 
@@ -105,7 +113,7 @@ The application code is under the licence in `LICENSE`.
 ## Limits
 
 - Anagram input: 2 to 30 letters.
-- Two-word anagrams: the best 500 pairs are listed.
+- Two-word anagrams: at most 500 pairs are listed, most readable first.
 - Magic squares: sizes 1 to 100. The cap keeps the grid usable; the algorithms have no such limit.
 - Step-by-step construction: sizes up to 12.
 - One square is generated per size.
